@@ -2,6 +2,7 @@ package com.example.laboratorio_09_tienda_temtica.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -58,74 +59,81 @@ fun BookDetailScreen(
             )
         }
     ) { innerPadding -> Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ProductImage(
+            imageUrl = book.imageUrl,
+            bookTitle = book.title,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth()
+                .aspectRatio(3f / 2f)
+        )
+        Text(
+            text = book.title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = book.description,
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = "Q %.2f".format(book.price),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Button(
+            onClick = { onFavoriteClick(book.id) },
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = book.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                text = if (isFavorite) {
+                    "★ Quitar de favoritos"
+                } else {
+                    "☆ Agregar a favoritos"
+                }
             )
-            Text(
-                text = book.description,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "Q %.2f".format(book.price),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-            Button(
-                onClick = { onFavoriteClick(book.id) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (isFavorite) {
-                        "★ Quitar de favoritos"
-                    } else {
-                        "☆ Agregar a favoritos"
-                    }
-                )
-            }
-            HorizontalDivider()
-            OutlinedButton(
-                onClick = { showTechnicalDetails = !showTechnicalDetails },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (showTechnicalDetails) {
-                        "Ocultar ficha técnica"
-                    } else {
-                        "Ver ficha técnica"
-                    }
-                )
-            }
-
-            if (showTechnicalDetails) {
-                TechnicalDetailsCard(detail = book.details)
-            }
-            HorizontalDivider()
-            Text(
-                text = "Autor relacionado",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Consulta el perfil del autor de este libro.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Button(
-                onClick = { onAuthorClick(book.authorId) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = "Ver perfil del autor")
-            }
         }
+        HorizontalDivider()
+        OutlinedButton(
+            onClick = { showTechnicalDetails = !showTechnicalDetails },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = if (showTechnicalDetails) {
+                    "Ocultar ficha técnica"
+                } else {
+                    "Ver ficha técnica"
+                }
+            )
+        }
+
+        if (showTechnicalDetails) {
+            TechnicalDetailsCard(detail = book.details)
+        }
+        HorizontalDivider()
+        Text(
+            text = "Autor relacionado",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Consulta el perfil del autor de este libro.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Button(
+            onClick = { onAuthorClick(book.authorId) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Ver perfil del autor")
+        }
+    }
     }
 }
 

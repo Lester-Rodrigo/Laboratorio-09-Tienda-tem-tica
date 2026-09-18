@@ -13,12 +13,10 @@ private data class BookTheme(
     val descriptions: List<String>,
     val basePrice: Double
 )
-
 private data class BookFormat(
     val name: String,
     val priceAdjustment: Double
 )
-
 private val bookThemes = listOf(
     BookTheme(
         genre = "Fantasía",
@@ -110,6 +108,7 @@ private val titleEndings = listOf(
     "Las señales del camino",
     "El misterio de las palabras"
 )
+
 private val titleSeeds = bookThemes.flatMap { theme ->
     theme.subjects.map { subject -> theme to subject }
 }
@@ -118,7 +117,7 @@ fun stableBookCoverUrl(bookId: String): String {
     require(bookId.matches(validBookId)) {
         "El ID del libro solo puede contener letras, números y guiones."
     }
-    return "https://picsum.photos/seed/$bookId/600/900"
+    return "https://picsum.photos/seed/$bookId/320/480"
 }
 
 fun generateBookCatalog(
@@ -175,7 +174,6 @@ fun generateBookCatalog(
     )
     return completeCatalog
 }
-
 private fun validateCatalog(
     catalog: List<Books>,
     knownAuthorIds: Set<String>
