@@ -6,16 +6,19 @@ import kotlin.random.Random
 private const val TARGET_CATALOG_SIZE = 500
 private const val CATALOG_SEED = 10_2026
 private val validBookId = Regex("[A-Za-z0-9-]+")
+
 private data class BookTheme(
     val genre: String,
     val subjects: List<String>,
     val descriptions: List<String>,
     val basePrice: Double
 )
+
 private data class BookFormat(
     val name: String,
     val priceAdjustment: Double
 )
+
 private val bookThemes = listOf(
     BookTheme(
         genre = "Fantasía",
@@ -77,6 +80,40 @@ private val bookFormats = listOf(
     BookFormat("Tapa dura", 35.0),
     BookFormat("Edición ilustrada", 58.0)
 )
+private val titleEndings = listOf(
+    "Voces del horizonte",
+    "Crónicas de ceniza",
+    "El secreto de la memoria",
+    "Historias de medianoche",
+    "Bajo un cielo distante",
+    "El comienzo del viaje",
+    "Sombras del pasado",
+    "La promesa del amanecer",
+    "Ecos de otro tiempo",
+    "Los caminos del destino",
+    "Una historia inesperada",
+    "El umbral de los sueños",
+    "Cartas desde el silencio",
+    "La búsqueda imposible",
+    "Donde nacen las leyendas",
+    "El último descubrimiento",
+    "Memorias de una aventura",
+    "Más allá de las montañas",
+    "El rumor de las estrellas",
+    "La huella de los viajeros",
+    "Secretos entre páginas",
+    "El lenguaje del tiempo",
+    "Una luz en la distancia",
+    "Relatos de un mundo perdido",
+    "La puerta de los recuerdos",
+    "El regreso de los guardianes",
+    "Las señales del camino",
+    "El misterio de las palabras"
+)
+private val titleSeeds = bookThemes.flatMap { theme ->
+    theme.subjects.map { subject -> theme to subject }
+}
+
 fun stableBookCoverUrl(bookId: String): String {
     require(bookId.matches(validBookId)) {
         "El ID del libro solo puede contener letras, números y guiones."
@@ -105,9 +142,9 @@ fun generateBookCatalog(
     val generatedCount = TARGET_CATALOG_SIZE - originalBooks.size
     val generatedBooks = List(generatedCount) { offset ->
         val sequence = offset + 1
-        val theme = bookThemes[random.nextInt(bookThemes.size)]
+        val (theme, subject) = titleSeeds[offset % titleSeeds.size]
+        val titleEnding = titleEndings[offset / titleSeeds.size]
         val format = bookFormats[random.nextInt(bookFormats.size)]
-        val subject = theme.subjects[random.nextInt(theme.subjects.size)]
         val description = theme.descriptions[random.nextInt(theme.descriptions.size)]
         val author = authorProfiles[random.nextInt(authorProfiles.size)]
         val stock = when {
@@ -120,7 +157,7 @@ fun generateBookCatalog(
         val id = "generated-book-${sequence.toString().padStart(3, '0')}"
         Books(
             id = id,
-            title = "${subject.replaceFirstChar { it.uppercase() }} · ${sequence.toString().padStart(3, '0')}",
+            title = "${subject.replaceFirstChar { it.uppercase() }}: $titleEnding",
             description = description,
             price = price,
             authorId = author.id,
@@ -152,6 +189,9 @@ private fun validateCatalog(
     require(catalog.map { it.id }.distinct().size == catalog.size) {
         "Todos los libros deben tener un ID único."
     }
+    require(catalog.map { it.title }.distinct().size == catalog.size) {
+        "Todos los libros deben tener un título único."
+    }
     require(catalog.all { it.price > 0.0 }) {
         "Todos los precios deben ser positivos."
     }
@@ -174,3 +214,4 @@ private fun validateCatalog(
         "Cada portada debe derivarse del ID estable del libro."
     }
 }
+
