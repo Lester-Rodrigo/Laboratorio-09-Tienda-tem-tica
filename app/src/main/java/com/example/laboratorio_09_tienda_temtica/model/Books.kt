@@ -6,5 +6,9 @@ data class Books(
     val description: String,
     val price: Double,
     val authorId: String,
-    val details: String
+    val details: String,
+    val genre: String,
+    val format: String,
+    val stock: Int,
+    val imageUrl: String
 )
