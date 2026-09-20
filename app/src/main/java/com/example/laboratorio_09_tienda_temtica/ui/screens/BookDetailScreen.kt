@@ -20,31 +20,43 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookDetailScreen(
     book: Books,
+    authorName: String,
     isFavorite: Boolean,
     onFavoriteClick: (String) -> Unit,
+    onAddToOrder: (String) -> Boolean,
     onAuthorClick: (String) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showTechnicalDetails by remember { mutableStateOf(false) }
+    var showTechnicalDetails by rememberSaveable { mutableStateOf(false) }
+    var orderRequestInProgress by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(text = "Detalle del libro") },
@@ -88,6 +100,39 @@ fun BookDetailScreen(
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
         )
+        Text(
+            text = if (book.stock == 0) "Agotado" else "Existencias: ${book.stock}",
+            style = MaterialTheme.typography.titleMedium,
+            color = if (book.stock == 0) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        )
+        Button(
+            enabled = !orderRequestInProgress,
+            onClick = {
+                if (!orderRequestInProgress) {
+                    orderRequestInProgress = true
+                    coroutineScope.launch {
+                        val accepted = onAddToOrder(book.id)
+                        snackbarHostState.showSnackbar(
+                            message = if (accepted) {
+                                "Libro agregado al pedido."
+                            } else {
+                                "No se puede agregar: el libro no tiene existencias."
+                            },
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Short
+                        )
+                        orderRequestInProgress = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Agregar al pedido")
+        }
         Button(
             onClick = { onFavoriteClick(book.id) },
             modifier = Modifier.fillMaxWidth()
@@ -122,6 +167,11 @@ fun BookDetailScreen(
             text = "Autor relacionado",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = authorName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
         )
         Text(
             text = "Consulta el perfil del autor de este libro.",

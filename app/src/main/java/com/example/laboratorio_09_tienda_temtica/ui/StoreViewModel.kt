@@ -93,15 +93,48 @@ class StoreViewModel : ViewModel() {
             description = "Autor interesado en la relación entre tecnología, identidad y futuros posibles."
         )
     )
+    private val completeCatalog = generateBookCatalog(
+        originalBooks = originalBooks,
+        authorProfiles = authors
+    )
     private val _uiState = MutableStateFlow(
         StoreUiState(
-            books = generateBookCatalog(
-                originalBooks = originalBooks,
-                authorProfiles = authors),
+            books = completeCatalog,
+            filteredBooks = completeCatalog,
             authors = authors
         )
     )
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { currentState ->
+            if (query == currentState.searchQuery) {
+                currentState
+            } else {
+                val normalizedQuery = query.trim()
+                currentState.copy(
+                    searchQuery = query,
+                    filteredBooks = if (normalizedQuery.isEmpty()) {
+                        currentState.books
+                    } else {
+                        currentState.books.filter { book ->
+                            book.title.contains(normalizedQuery, ignoreCase = true)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    fun clearSearchQuery() {
+        updateSearchQuery("")
+    }
+
+    fun findBookById(bookId: String): Books? =
+        _uiState.value.books.firstOrNull { book -> book.id == bookId }
+
+    fun addToOrder(bookId: String): Boolean =
+        findBookById(bookId)?.stock?.let { stock -> stock > 0 } ?: false
 
     fun toggleFavorite(bookId: String) {
         _uiState.update { currentState ->

@@ -12,10 +12,89 @@ class StoreViewModelTest {
     fun initialStateContainsRequiredCatalogData() {
         val state = StoreViewModel().uiState.value
 
-        assertEquals(3, state.books.size)
-        assertEquals(2, state.authors.size)
+        assertEquals(500, state.books.size)
+        assertEquals(500, state.filteredBooks.size)
+        assertEquals(6, state.authors.size)
         assertTrue(state.books.all { book -> state.authors.any { it.id == book.authorId } })
         assertTrue(state.favoriteBookIds.isEmpty())
+    }
+
+    @Test
+    fun emptyQueryReturnsCompleteCatalog() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("")
+        assertEquals(500, viewModel.uiState.value.filteredBooks.size)
+    }
+
+    @Test
+    fun exactQueryReturnsMatchingTitle() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("El principito")
+        assertEquals(listOf("El principito"), viewModel.uiState.value.filteredBooks.map { it.title })
+    }
+
+    @Test
+    fun partialQueryReturnsMatchingTitles() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("princip")
+        assertTrue(viewModel.uiState.value.filteredBooks.any { it.title == "El principito" })
+        assertTrue(viewModel.uiState.value.filteredBooks.all { it.title.contains("princip", ignoreCase = true) })
+    }
+
+    @Test
+    fun queryIgnoresLetterCase() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("EL PRINCIPITO")
+        assertEquals(listOf("El principito"), viewModel.uiState.value.filteredBooks.map { it.title })
+    }
+
+    @Test
+    fun queryIgnoresOuterSpacesWithoutChangingEnteredText() {
+        val viewModel = StoreViewModel()
+        val query = "  El principito  "
+        viewModel.updateSearchQuery(query)
+        assertEquals(query, viewModel.uiState.value.searchQuery)
+        assertEquals(listOf("El principito"), viewModel.uiState.value.filteredBooks.map { it.title })
+    }
+
+    @Test
+    fun queryWithoutMatchesReturnsEmptyList() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("título que no existe")
+        assertTrue(viewModel.uiState.value.filteredBooks.isEmpty())
+    }
+
+    @Test
+    fun clearQueryRestoresCompleteCatalog() {
+        val viewModel = StoreViewModel()
+        viewModel.updateSearchQuery("El principito")
+        viewModel.clearSearchQuery()
+        assertEquals("", viewModel.uiState.value.searchQuery)
+        assertEquals(500, viewModel.uiState.value.filteredBooks.size)
+    }
+
+    @Test
+    fun resolvesBookById() {
+        val viewModel = StoreViewModel()
+        assertEquals("Cien años de soledad", viewModel.findBookById("book-2")?.title)
+    }
+
+    @Test
+    fun missingBookIdReturnsNull() {
+        val viewModel = StoreViewModel()
+        assertEquals(null, viewModel.findBookById("missing-book"))
+    }
+
+    @Test
+    fun orderIsAcceptedWhenBookHasStock() {
+        val viewModel = StoreViewModel()
+        assertTrue(viewModel.addToOrder("book-1"))
+    }
+
+    @Test
+    fun orderIsRejectedWhenBookHasNoStock() {
+        val viewModel = StoreViewModel()
+        assertFalse(viewModel.addToOrder("book-3"))
     }
 
     @Test

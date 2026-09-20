@@ -1,6 +1,11 @@
 package com.example.laboratorio_09_tienda_temtica.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,9 +30,14 @@ import com.example.laboratorio_09_tienda_temtica.ui.screens.CatalogScreen
 @Composable
 fun StoreNavigation(
     books: List<Books>,
+    filteredBooks: List<Books>,
     authors: List<AuthorProfile>,
     favoriteBookIds: Set<String>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
     onFavoriteClick: (String) -> Unit,
+    onAddToOrder: (String) -> Boolean,
     modifier: Modifier = Modifier
 ) {
     val backStack = rememberNavBackStack(CatalogKey)
@@ -43,11 +53,44 @@ fun StoreNavigation(
         modifier = modifier,
         backStack = backStack,
         onBack = navigateBack,
+        transitionSpec = {
+            (slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                animationSpec = tween(220)
+            ) + fadeIn(tween(220))) togetherWith
+                (slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(220)
+                ) + fadeOut(tween(160)))
+        },
+        popTransitionSpec = {
+            (slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = tween(220)
+            ) + fadeIn(tween(220))) togetherWith
+                (slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(220)
+                ) + fadeOut(tween(160)))
+        },
+        predictivePopTransitionSpec = { _ ->
+            (slideIntoContainer(
+                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = tween(220)
+            ) + fadeIn(tween(220))) togetherWith
+                (slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(220)
+                ) + fadeOut(tween(160)))
+        },
         entryProvider = entryProvider {
             entry<CatalogKey> {
                 CatalogScreen(
-                    books = books,
+                    books = filteredBooks,
                     favoriteBookIds = favoriteBookIds,
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    onClearSearch = onClearSearch,
                     onBookClick = { bookId -> backStack.add(BookDetailKey(bookId = bookId)) },
                     onFavoriteClick = onFavoriteClick
                 )
@@ -58,10 +101,15 @@ fun StoreNavigation(
                 }
 
                 if (selectedBook != null) {
+                    val selectedAuthor = authors.firstOrNull { author ->
+                        author.id == selectedBook.authorId
+                    }
                     BookDetailScreen(
                         book = selectedBook,
+                        authorName = selectedAuthor?.name ?: "Autor no disponible",
                         isFavorite = selectedBook.id in favoriteBookIds,
                         onFavoriteClick = onFavoriteClick,
+                        onAddToOrder = onAddToOrder,
                         onAuthorClick = { authorId ->
                             backStack.add(AuthorProfileKey(authorId = authorId))
                         },
