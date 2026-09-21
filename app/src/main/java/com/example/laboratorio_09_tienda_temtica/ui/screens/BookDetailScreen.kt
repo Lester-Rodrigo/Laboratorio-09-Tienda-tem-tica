@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.OrderResult
+import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,7 +47,9 @@ fun BookDetailScreen(
     authorName: String,
     isFavorite: Boolean,
     onFavoriteClick: (String) -> Unit,
-    onAddToOrder: (String) -> Boolean,
+    onAddToOrder: (String) -> OrderResult,
+    orderUnitCount: Int,
+    onOrderClick: () -> Unit,
     onAuthorClick: (String) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -67,6 +71,12 @@ fun BookDetailScreen(
                             contentDescription = "Regresar al catálogo"
                         )
                     }
+                },
+                actions = {
+                    OrderAccessButton(
+                        unitCount = orderUnitCount,
+                        onClick = onOrderClick
+                    )
                 }
             )
         }
@@ -95,7 +105,7 @@ fun BookDetailScreen(
             style = MaterialTheme.typography.bodyLarge
         )
         Text(
-            text = "Q %.2f".format(book.price),
+            text = formatQuetzales(book.price),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
@@ -115,12 +125,17 @@ fun BookDetailScreen(
                 if (!orderRequestInProgress) {
                     orderRequestInProgress = true
                     coroutineScope.launch {
-                        val accepted = onAddToOrder(book.id)
+                        val result = onAddToOrder(book.id)
                         snackbarHostState.showSnackbar(
-                            message = if (accepted) {
-                                "Libro agregado al pedido."
-                            } else {
-                                "No se puede agregar: el libro no tiene existencias."
+                            message = when (result) {
+                                OrderResult.ADDED -> "Libro agregado al pedido."
+                                OrderResult.INSUFFICIENT_STOCK -> if (book.stock == 0) {
+                                    "No se puede agregar: el libro no tiene existencias."
+                                } else {
+                                    "Ya tienes en el pedido todas las existencias disponibles."
+                                }
+                                OrderResult.INVALID_QUANTITY -> "La cantidad debe ser mayor que cero."
+                                OrderResult.BOOK_NOT_FOUND -> "El libro ya no está disponible."
                             },
                             withDismissAction = true,
                             duration = SnackbarDuration.Short

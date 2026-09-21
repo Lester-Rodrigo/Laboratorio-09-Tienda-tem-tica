@@ -29,7 +29,13 @@ class MainActivity : ComponentActivity() {
                     onSearchQueryChange = storeViewModel::updateSearchQuery,
                     onClearSearch = storeViewModel::clearSearchQuery,
                     onFavoriteClick = storeViewModel::toggleFavorite,
-                    onAddToOrder = storeViewModel::addToOrder
+                    orderLines = uiState.orderLines,
+                    orderTotal = uiState.orderTotal,
+                    orderUnitCount = uiState.orderUnitCount,
+                    onAddToOrder = { bookId -> storeViewModel.addToOrder(bookId) },
+                    onIncreaseQuantity = storeViewModel::increaseQuantity,
+                    onDecreaseQuantity = storeViewModel::decreaseQuantity,
+                    onRemoveFromOrder = storeViewModel::removeFromOrder
                 )
             }
         }

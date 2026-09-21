@@ -23,9 +23,13 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.OrderLine
+import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.ui.screens.AuthorProfileScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.BookDetailScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CatalogScreen
+import com.example.laboratorio_09_tienda_temtica.ui.screens.OrderScreen
+import java.math.BigDecimal
 
 @Composable
 fun StoreNavigation(
@@ -37,13 +41,24 @@ fun StoreNavigation(
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
     onFavoriteClick: (String) -> Unit,
-    onAddToOrder: (String) -> Boolean,
+    orderLines: List<OrderLine>,
+    orderTotal: BigDecimal,
+    orderUnitCount: Int,
+    onAddToOrder: (String) -> OrderResult,
+    onIncreaseQuantity: (String) -> OrderResult,
+    onDecreaseQuantity: (String) -> Unit,
+    onRemoveFromOrder: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backStack = rememberNavBackStack(CatalogKey)
     val navigateBack: () -> Unit = {
         if (backStack.size > 1) {
             backStack.removeLastOrNull()
+        }
+    }
+    val openOrder: () -> Unit = {
+        if (backStack.lastOrNull() != OrderKey) {
+            backStack.add(OrderKey)
         }
     }
     BackHandler(enabled = backStack.size > 1) {
@@ -92,7 +107,9 @@ fun StoreNavigation(
                     onSearchQueryChange = onSearchQueryChange,
                     onClearSearch = onClearSearch,
                     onBookClick = { bookId -> backStack.add(BookDetailKey(bookId = bookId)) },
-                    onFavoriteClick = onFavoriteClick
+                    onFavoriteClick = onFavoriteClick,
+                    orderUnitCount = orderUnitCount,
+                    onOrderClick = openOrder
                 )
             }
             entry<BookDetailKey> { key ->
@@ -110,6 +127,8 @@ fun StoreNavigation(
                         isFavorite = selectedBook.id in favoriteBookIds,
                         onFavoriteClick = onFavoriteClick,
                         onAddToOrder = onAddToOrder,
+                        orderUnitCount = orderUnitCount,
+                        onOrderClick = openOrder,
                         onAuthorClick = { authorId ->
                             backStack.add(AuthorProfileKey(authorId = authorId))
                         },
@@ -121,6 +140,22 @@ fun StoreNavigation(
                         onBackClick = navigateBack
                     )
                 }
+            }
+            entry<OrderKey> {
+                OrderScreen(
+                    orderLines = orderLines,
+                    orderTotal = orderTotal,
+                    orderUnitCount = orderUnitCount,
+                    onIncrease = onIncreaseQuantity,
+                    onDecrease = onDecreaseQuantity,
+                    onRemove = onRemoveFromOrder,
+                    onGoToCatalog = {
+                        while (backStack.size > 1) {
+                            backStack.removeLastOrNull()
+                        }
+                    },
+                    onBackClick = navigateBack
+                )
             }
             entry<AuthorProfileKey> { key ->
                 val selectedAuthor = authors.firstOrNull { author ->

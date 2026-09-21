@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +56,8 @@ fun CatalogScreen(
     onClearSearch: () -> Unit,
     onBookClick: (String) -> Unit,
     onFavoriteClick: (String) -> Unit,
+    orderUnitCount: Int,
+    onOrderClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
@@ -84,6 +87,12 @@ fun CatalogScreen(
             TopAppBar(
                 title = {
                     Text(text = "Librería Literaria")
+                },
+                actions = {
+                    OrderAccessButton(
+                        unitCount = orderUnitCount,
+                        onClick = onOrderClick
+                    )
                 }
             )
         },
@@ -269,7 +278,7 @@ fun ProductCard(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "Q %.2f".format(book.price),
+                text = formatQuetzales(book.price),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold

@@ -3,8 +3,13 @@ package com.example.laboratorio_09_tienda_temtica.ui
 import androidx.lifecycle.ViewModel
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.OrderLine
+import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
 import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
+import com.example.laboratorio_09_tienda_temtica.model.toMoney
+import java.math.BigDecimal
+import java.math.RoundingMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,8 +138,88 @@ class StoreViewModel : ViewModel() {
     fun findBookById(bookId: String): Books? =
         _uiState.value.books.firstOrNull { book -> book.id == bookId }
 
-    fun addToOrder(bookId: String): Boolean =
-        findBookById(bookId)?.stock?.let { stock -> stock > 0 } ?: false
+    fun addToOrder(bookId: String, quantity: Int = 1): OrderResult {
+        var result = OrderResult.ADDED
+        _uiState.update { currentState ->
+            val book = currentState.books.firstOrNull { it.id == bookId }
+            val currentQuantity = currentState.orderLines
+                .firstOrNull { it.bookId == bookId }
+                ?.quantity ?: 0
+            result = when {
+                book == null -> OrderResult.BOOK_NOT_FOUND
+                quantity <= 0 -> OrderResult.INVALID_QUANTITY
+                currentQuantity + quantity > book.stock -> OrderResult.INSUFFICIENT_STOCK
+                else -> OrderResult.ADDED
+            }
+            if (result != OrderResult.ADDED || book == null) {
+                currentState
+            } else {
+                val updatedLines = if (currentQuantity == 0) {
+                    currentState.orderLines + OrderLine(
+                        bookId = book.id,
+                        title = book.title,
+                        unitPrice = book.price.toMoney(),
+                        quantity = quantity
+                    )
+                } else {
+                    currentState.orderLines.map { line ->
+                        if (line.bookId == bookId) {
+                            line.copy(quantity = line.quantity + quantity)
+                        } else {
+                            line
+                        }
+                    }
+                }
+                currentState.withOrderLines(updatedLines)
+            }
+        }
+        return result
+    }
+
+    fun increaseQuantity(bookId: String): OrderResult {
+        if (_uiState.value.orderLines.none { it.bookId == bookId }) {
+            return OrderResult.BOOK_NOT_FOUND
+        }
+        return addToOrder(bookId, quantity = 1)
+    }
+
+    fun decreaseQuantity(bookId: String) {
+        _uiState.update { currentState ->
+            if (currentState.orderLines.none { it.bookId == bookId }) {
+                currentState
+            } else {
+                val updatedLines = currentState.orderLines.mapNotNull { line ->
+                    when {
+                        line.bookId != bookId -> line
+                        line.quantity <= 1 -> null
+                        else -> line.copy(quantity = line.quantity - 1)
+                    }
+                }
+                currentState.withOrderLines(updatedLines)
+            }
+        }
+    }
+
+    fun removeFromOrder(bookId: String) {
+        _uiState.update { currentState ->
+            if (currentState.orderLines.none { it.bookId == bookId }) {
+                currentState
+            } else {
+                currentState.withOrderLines(
+                    currentState.orderLines.filterNot { it.bookId == bookId }
+                )
+            }
+        }
+    }
+
+    private fun StoreUiState.withOrderLines(lines: List<OrderLine>): StoreUiState =
+        copy(
+            orderLines = lines,
+            orderTotal = lines
+                .fold(BigDecimal.ZERO) { total, line -> total + line.subtotal }
+                .setScale(2, RoundingMode.HALF_UP),
+            orderUnitCount = lines.sumOf { it.quantity }
+        )
 
     fun toggleFavorite(bookId: String) {
         _uiState.update { currentState ->

@@ -1,4 +1,4 @@
-# Laboratorio 09 — Tienda temática
+# Laboratorio 09/10 — Tienda temática
 
 Aplicación Android de una librería creada con Kotlin, Jetpack Compose, Material 3,
 Navigation 3 y Coil 3.
@@ -15,6 +15,11 @@ Navigation 3 y Coil 3.
 - Favoritos en memoria.
 - Validación de “Agregar al pedido” según las existencias, con confirmación mediante Snackbar.
 - Transiciones breves de avance, regreso y predictive back.
+- Pedido en memoria: agregar, acumular el mismo libro en una sola línea, aumentar,
+  disminuir y eliminar, con validación de existencias.
+- Subtotales y total calculados en el ViewModel y mostrados en quetzales con dos decimales.
+- Pantalla “Mi pedido” con estado vacío y acceso desde la barra superior con la cantidad
+  total de unidades.
 
 ## Arquitectura
 
@@ -23,6 +28,15 @@ la consulta, los resultados filtrados y los favoritos. Las pantallas reciben est
 callbacks; no modifican directamente datos globales. Navigation 3 conserva una pila con
 claves que contienen únicamente `bookId` o `authorId`. El catálogo guarda su
 `LazyGridState` mediante el mecanismo saveable de Compose para preservar índice y offset.
+
+### Responsabilidades MVVM
+
+| Capa | Responsabilidad | Archivos |
+|------|-----------------|----------|
+| Model | Datos del dominio y reglas puras: libros, autores, líneas del pedido, subtotal y formato de quetzales. | `model/Books.kt`, `model/AuthorProfile.kt`, `model/OrderLine.kt`, `model/BookCatalogGenerator.kt` |
+| ViewModel | Única fuente de verdad (`StateFlow<StoreUiState>`). Valida y ejecuta `addToOrder`, aumentar, disminuir y eliminar; calcula total y unidades; rechaza operaciones inválidas sin modificar el estado. | `ui/StoreViewModel.kt`, `ui/StoreUiState.kt` |
+| View | Pantallas Compose que solo dibujan el estado recibido y emiten eventos mediante callbacks; no calculan totales ni modifican el pedido. | `ui/screens/CatalogScreen.kt`, `ui/screens/BookDetailScreen.kt`, `ui/screens/OrderScreen.kt` |
+| Navegación / estado de UI | Una sola instancia de `StoreViewModel` creada en `MainActivity`; Navigation 3 decide qué pantalla mostrar con claves serializables (`CatalogKey`, `BookDetailKey`, `OrderKey`, `AuthorProfileKey`). | `MainActivity.kt`, `navigation/NavigationStorage.kt`, `navigation/NavKeyStorage.kt` |
 
 ## Ejecución
 
@@ -40,7 +54,8 @@ $env:GRADLE_USER_HOME = "$PWD\.gradle-local"
 ## Pruebas
 
 Las pruebas unitarias cubren el catálogo, favoritos, búsqueda, resolución por ID y la
-aceptación o rechazo de pedidos según el stock.
+reglas del pedido: acumulación en una línea, validación de libro, cantidad y existencias,
+rechazo sin cambios, eliminación al llegar a cero, subtotales, total y formato en quetzales.
 
 ```powershell
 $env:GRADLE_USER_HOME = "$PWD\.gradle-local"

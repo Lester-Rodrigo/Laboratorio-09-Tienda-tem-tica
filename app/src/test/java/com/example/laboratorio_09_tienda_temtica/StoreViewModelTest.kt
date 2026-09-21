@@ -1,6 +1,9 @@
 package com.example.laboratorio_09_tienda_temtica
 
+import com.example.laboratorio_09_tienda_temtica.model.OrderResult
+import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
 import com.example.laboratorio_09_tienda_temtica.ui.StoreViewModel
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -88,13 +91,112 @@ class StoreViewModelTest {
     @Test
     fun orderIsAcceptedWhenBookHasStock() {
         val viewModel = StoreViewModel()
-        assertTrue(viewModel.addToOrder("book-1"))
+        assertEquals(OrderResult.ADDED, viewModel.addToOrder("book-1"))
+        assertEquals(1, viewModel.uiState.value.orderLines.size)
+        assertEquals(1, viewModel.uiState.value.orderUnitCount)
     }
 
     @Test
     fun orderIsRejectedWhenBookHasNoStock() {
         val viewModel = StoreViewModel()
-        assertFalse(viewModel.addToOrder("book-3"))
+        assertEquals(OrderResult.INSUFFICIENT_STOCK, viewModel.addToOrder("book-3"))
+        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
+    }
+
+    @Test
+    fun sameBookAccumulatesInSingleLine() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1")
+        viewModel.addToOrder("book-1")
+        viewModel.addToOrder("book-1", quantity = 2)
+
+        val lines = viewModel.uiState.value.orderLines
+        assertEquals(1, lines.size)
+        assertEquals(4, lines.single().quantity)
+    }
+
+    @Test
+    fun invalidOperationsDoNotModifyOrder() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-2")
+        val before = viewModel.uiState.value
+
+        assertEquals(OrderResult.BOOK_NOT_FOUND, viewModel.addToOrder("missing-book"))
+        assertEquals(OrderResult.INVALID_QUANTITY, viewModel.addToOrder("book-2", quantity = 0))
+        assertEquals(OrderResult.INVALID_QUANTITY, viewModel.addToOrder("book-2", quantity = -3))
+        assertEquals(OrderResult.INSUFFICIENT_STOCK, viewModel.addToOrder("book-2", quantity = 3))
+        viewModel.decreaseQuantity("missing-book")
+        viewModel.removeFromOrder("missing-book")
+
+        assertEquals(before, viewModel.uiState.value)
+    }
+
+    @Test
+    fun cannotExceedStockWhenIncreasing() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-2")
+        assertEquals(OrderResult.ADDED, viewModel.increaseQuantity("book-2"))
+        assertEquals(OrderResult.ADDED, viewModel.increaseQuantity("book-2"))
+        assertEquals(OrderResult.INSUFFICIENT_STOCK, viewModel.increaseQuantity("book-2"))
+        assertEquals(3, viewModel.uiState.value.orderLines.single().quantity)
+    }
+
+    @Test
+    fun increaseRequiresExistingLine() {
+        val viewModel = StoreViewModel()
+        assertEquals(OrderResult.BOOK_NOT_FOUND, viewModel.increaseQuantity("book-1"))
+        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
+    }
+
+    @Test
+    fun decreaseToZeroRemovesLine() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1", quantity = 2)
+        viewModel.decreaseQuantity("book-1")
+        assertEquals(1, viewModel.uiState.value.orderLines.single().quantity)
+
+        viewModel.decreaseQuantity("book-1")
+        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
+        assertEquals(0, viewModel.uiState.value.orderUnitCount)
+    }
+
+    @Test
+    fun removeDeletesOnlySelectedLine() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1")
+        viewModel.addToOrder("book-2")
+        viewModel.removeFromOrder("book-1")
+        assertEquals(listOf("book-2"), viewModel.uiState.value.orderLines.map { it.bookId })
+    }
+
+    @Test
+    fun subtotalsAndTotalUseTwoDecimals() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1", quantity = 3)
+        viewModel.addToOrder("book-2", quantity = 2)
+
+        val state = viewModel.uiState.value
+        assertEquals(BigDecimal("269.70"), state.orderLines[0].subtotal)
+        assertEquals(BigDecimal("299.00"), state.orderLines[1].subtotal)
+        assertEquals(BigDecimal("568.70"), state.orderTotal)
+        assertEquals(5, state.orderUnitCount)
+        assertEquals("Q 568.70", formatQuetzales(state.orderTotal))
+    }
+
+    @Test
+    fun emptyOrderHasZeroTotal() {
+        val state = StoreViewModel().uiState.value
+        assertTrue(state.orderLines.isEmpty())
+        assertEquals("Q 0.00", formatQuetzales(state.orderTotal))
+        assertEquals(0, state.orderUnitCount)
+    }
+
+    @Test
+    fun orderDoesNotChangeCatalogStock() {
+        val viewModel = StoreViewModel()
+        val initialBooks = viewModel.uiState.value.books
+        viewModel.addToOrder("book-1", quantity = 2)
+        assertEquals(initialBooks, viewModel.uiState.value.books)
     }
 
     @Test

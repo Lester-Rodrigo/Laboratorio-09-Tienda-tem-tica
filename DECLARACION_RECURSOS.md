@@ -5,3 +5,11 @@
 
 # No se incorporaron fragmentos de código de tutoriales ni recursos externos
 # adicionales.
+
+## Laboratorio 10 — Persona 3 (ViewModel, pedido y entrega)
+
+Se utilizó Claude (Anthropic) como asistente de programación para apoyar la implementación
+del pedido, las pruebas unitarias, la verificación en el emulador y la documentación de la
+entrega. El equipo revisó el código y los resultados antes de integrarlos.
+
+No se incorporaron fragmentos de código de tutoriales ni recursos externos adicionales.
