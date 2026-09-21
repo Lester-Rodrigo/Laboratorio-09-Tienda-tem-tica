@@ -4,13 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.laboratorio_09_tienda_temtica.navigation.StoreNavigation
+import com.example.laboratorio_09_tienda_temtica.ui.StoreViewModel
 import com.example.laboratorio_09_tienda_temtica.ui.theme.Laboratorio_09_Tienda_temáticaTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,29 +17,27 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Laboratorio_09_Tienda_temáticaTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                val storeViewModel: StoreViewModel = viewModel()
+                val uiState by storeViewModel.uiState.collectAsStateWithLifecycle()
+
+                StoreNavigation(
+                    books = uiState.books,
+                    filteredBooks = uiState.filteredBooks,
+                    authors = uiState.authors,
+                    favoriteBookIds = uiState.favoriteBookIds,
+                    searchQuery = uiState.searchQuery,
+                    onSearchQueryChange = storeViewModel::updateSearchQuery,
+                    onClearSearch = storeViewModel::clearSearchQuery,
+                    onFavoriteClick = storeViewModel::toggleFavorite,
+                    orderLines = uiState.orderLines,
+                    orderTotal = uiState.orderTotal,
+                    orderUnitCount = uiState.orderUnitCount,
+                    onAddToOrder = { bookId -> storeViewModel.addToOrder(bookId) },
+                    onIncreaseQuantity = storeViewModel::increaseQuantity,
+                    onDecreaseQuantity = storeViewModel::decreaseQuantity,
+                    onRemoveFromOrder = storeViewModel::removeFromOrder
+                )
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    Laboratorio_09_Tienda_temáticaTheme {
-        Greeting("Android")
     }
 }

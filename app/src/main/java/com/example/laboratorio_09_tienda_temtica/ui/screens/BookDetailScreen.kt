@@ -2,6 +2,7 @@ package com.example.laboratorio_09_tienda_temtica.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,31 +20,47 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.OrderResult
+import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookDetailScreen(
     book: Books,
+    authorName: String,
     isFavorite: Boolean,
     onFavoriteClick: (String) -> Unit,
+    onAddToOrder: (String) -> OrderResult,
+    orderUnitCount: Int,
+    onOrderClick: () -> Unit,
     onAuthorClick: (String) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showTechnicalDetails by remember { mutableStateOf(false) }
+    var showTechnicalDetails by rememberSaveable { mutableStateOf(false) }
+    var orderRequestInProgress by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(text = "Detalle del libro") },
@@ -54,78 +71,134 @@ fun BookDetailScreen(
                             contentDescription = "Regresar al catálogo"
                         )
                     }
+                },
+                actions = {
+                    OrderAccessButton(
+                        unitCount = orderUnitCount,
+                        onClick = onOrderClick
+                    )
                 }
             )
         }
     ) { innerPadding -> Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ProductImage(
+            imageUrl = book.imageUrl,
+            bookTitle = book.title,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth()
+                .aspectRatio(3f / 2f)
+        )
+        Text(
+            text = book.title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = book.description,
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = formatQuetzales(book.price),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = if (book.stock == 0) "Agotado" else "Existencias: ${book.stock}",
+            style = MaterialTheme.typography.titleMedium,
+            color = if (book.stock == 0) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        )
+        Button(
+            enabled = !orderRequestInProgress,
+            onClick = {
+                if (!orderRequestInProgress) {
+                    orderRequestInProgress = true
+                    coroutineScope.launch {
+                        val result = onAddToOrder(book.id)
+                        snackbarHostState.showSnackbar(
+                            message = when (result) {
+                                OrderResult.ADDED -> "Libro agregado al pedido."
+                                OrderResult.INSUFFICIENT_STOCK -> if (book.stock == 0) {
+                                    "No se puede agregar: el libro no tiene existencias."
+                                } else {
+                                    "Ya tienes en el pedido todas las existencias disponibles."
+                                }
+                                OrderResult.INVALID_QUANTITY -> "La cantidad debe ser mayor que cero."
+                                OrderResult.BOOK_NOT_FOUND -> "El libro ya no está disponible."
+                            },
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Short
+                        )
+                        orderRequestInProgress = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Agregar al pedido")
+        }
+        Button(
+            onClick = { onFavoriteClick(book.id) },
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = book.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                text = if (isFavorite) {
+                    "★ Quitar de favoritos"
+                } else {
+                    "☆ Agregar a favoritos"
+                }
             )
-            Text(
-                text = book.description,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "Q %.2f".format(book.price),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-            Button(
-                onClick = { onFavoriteClick(book.id) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (isFavorite) {
-                        "★ Quitar de favoritos"
-                    } else {
-                        "☆ Agregar a favoritos"
-                    }
-                )
-            }
-            HorizontalDivider()
-            OutlinedButton(
-                onClick = { showTechnicalDetails = !showTechnicalDetails },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (showTechnicalDetails) {
-                        "Ocultar ficha técnica"
-                    } else {
-                        "Ver ficha técnica"
-                    }
-                )
-            }
-
-            if (showTechnicalDetails) {
-                TechnicalDetailsCard(detail = book.details)
-            }
-            HorizontalDivider()
-            Text(
-                text = "Autor relacionado",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Consulta el perfil del autor de este libro.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Button(
-                onClick = { onAuthorClick(book.authorId) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = "Ver perfil del autor")
-            }
         }
+        HorizontalDivider()
+        OutlinedButton(
+            onClick = { showTechnicalDetails = !showTechnicalDetails },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = if (showTechnicalDetails) {
+                    "Ocultar ficha técnica"
+                } else {
+                    "Ver ficha técnica"
+                }
+            )
+        }
+
+        if (showTechnicalDetails) {
+            TechnicalDetailsCard(detail = book.details)
+        }
+        HorizontalDivider()
+        Text(
+            text = "Autor relacionado",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = authorName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = "Consulta el perfil del autor de este libro.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Button(
+            onClick = { onAuthorClick(book.authorId) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(text = "Ver perfil del autor")
+        }
+    }
     }
 }
 
