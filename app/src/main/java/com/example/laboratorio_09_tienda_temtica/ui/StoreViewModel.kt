@@ -8,12 +8,12 @@ import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
 import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
 import com.example.laboratorio_09_tienda_temtica.model.toMoney
-import java.math.BigDecimal
-import java.math.RoundingMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 class StoreViewModel : ViewModel() {
     private val originalBooks = listOf(
@@ -110,6 +110,8 @@ class StoreViewModel : ViewModel() {
         )
     )
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+    private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
+    val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
 
     fun updateSearchQuery(query: String) {
         _uiState.update { currentState ->
@@ -234,5 +236,75 @@ class StoreViewModel : ViewModel() {
                 currentState.copy(favoriteBookIds = updatedFavorites)
             }
         }
+    }
+
+    fun updateFullName(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                fullName = value,
+                isFullNameTouched = true
+            )
+        }
+    }
+
+    fun markFullNameTouched() {
+        _checkoutUiState.update { currentState -> currentState.copy(isFullNameTouched = true) }
+    }
+
+    fun updatePhone(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                phone = value,
+                isPhoneTouched = true
+            )
+        }
+    }
+
+    fun markPhoneTouched() {
+        _checkoutUiState.update { currentState -> currentState.copy(isPhoneTouched = true) }
+    }
+
+    fun updateNit(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                nit = value,
+                isNitTouched = true
+            )
+        }
+    }
+
+    fun markNitTouched() {
+        _checkoutUiState.update { currentState -> currentState.copy(isNitTouched = true) }
+    }
+
+    fun updateBusinessName(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                businessName = value,
+                isBusinessNameTouched = true
+            )
+        }
+    }
+
+    fun markBusinessNameTouched() {
+        _checkoutUiState.update { currentState -> currentState.copy(isBusinessNameTouched = true) }
+    }
+
+    fun updateBillingType(value: BillingType) {
+        _checkoutUiState.update { currentState ->
+            if (value == BillingType.CF) {
+                currentState.copy(
+                    billingType = BillingType.CF,
+                    isNitTouched = false,
+                    isBusinessNameTouched = false
+                )
+            } else {
+                currentState.copy(billingType = BillingType.NIT)
+            }
+        }
+    }
+    
+    fun updatePaymentMethod(value: PaymentMethod) {
+        _checkoutUiState.update { currentState -> currentState.copy(paymentMethod = value) }
     }
 }

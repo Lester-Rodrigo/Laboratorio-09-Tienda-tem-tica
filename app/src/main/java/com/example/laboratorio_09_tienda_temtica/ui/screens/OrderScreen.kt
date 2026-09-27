@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,6 +60,7 @@ fun OrderScreen(
     onRemove: (String) -> Unit,
     onGoToCatalog: () -> Unit,
     onBackClick: () -> Unit,
+    onContinueToCheckout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -82,7 +84,7 @@ fun OrderScreen(
         },
         bottomBar = {
             if (orderLines.isNotEmpty()) {
-                OrderSummaryBar(total = orderTotal, unitCount = orderUnitCount)
+                OrderSummaryBar(total = orderTotal, unitCount = orderUnitCount, onContinueToCheckout = onContinueToCheckout)
             }
         }
     ) { innerPadding ->
@@ -210,6 +212,7 @@ private fun OrderLineCard(
 private fun OrderSummaryBar(
     total: BigDecimal,
     unitCount: Int,
+    onContinueToCheckout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -221,13 +224,19 @@ private fun OrderSummaryBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             HorizontalDivider()
+
             Text(
-                text = if (unitCount == 1) "1 unidad" else "$unitCount unidades",
+                text = if (unitCount == 1) {
+                    "1 unidad"
+                } else {
+                    "$unitCount unidades"
+                },
                 style = MaterialTheme.typography.bodyLarge
             )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -238,12 +247,23 @@ private fun OrderSummaryBar(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
+
                 Text(
                     text = formatQuetzales(total),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            Button(
+                onClick = onContinueToCheckout,
+                enabled = unitCount > 0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+            ) {
+                Text(text = "Continuar al checkout")
             }
         }
     }
