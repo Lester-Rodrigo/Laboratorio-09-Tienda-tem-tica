@@ -2,6 +2,8 @@ package com.example.laboratorio_09_tienda_temtica
 
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
+import com.example.laboratorio_09_tienda_temtica.ui.BillingType
+import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
 import com.example.laboratorio_09_tienda_temtica.ui.StoreViewModel
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
@@ -219,5 +221,104 @@ class StoreViewModelTest {
         viewModel.toggleFavorite("missing-book")
 
         assertTrue(viewModel.uiState.value.favoriteBookIds.isEmpty())
+    }
+
+    @Test
+    fun switchingToCfClearsNitAndBusinessNameAndExcludesThemFromValidity() {
+        val viewModel = StoreViewModel()
+        viewModel.updateBillingType(BillingType.NIT)
+        viewModel.updateNit("123")
+        viewModel.updateBusinessName("Ab")
+
+        viewModel.updateBillingType(BillingType.CF)
+
+        val state = viewModel.checkoutUiState.value
+        assertFalse(state.isNitTouched)
+        assertFalse(state.isBusinessNameTouched)
+        assertEquals(null, state.nitError)
+        assertEquals(null, state.businessNameError)
+        assertEquals(null, state.visibleNitError)
+        assertEquals(null, state.visibleBusinessNameError)
+    }
+
+    @Test
+    fun switchingBackToNitValidatesEmptyFieldsWithoutShowingErrorsUntilTouched() {
+        val viewModel = StoreViewModel()
+        viewModel.updateBillingType(BillingType.NIT)
+        viewModel.updateBillingType(BillingType.CF)
+
+        viewModel.updateBillingType(BillingType.NIT)
+
+        val state = viewModel.checkoutUiState.value
+        assertFalse(state.isNitTouched)
+        assertFalse(state.isBusinessNameTouched)
+        assertEquals("Ingresa al menos 5 dígitos.", state.nitError)
+        assertEquals(null, state.visibleNitError)
+        assertEquals(null, state.visibleBusinessNameError)
+        assertFalse(state.isFormValid)
+    }
+
+    @Test
+    fun isFormValidIsComputedEvenWhenFieldsAreNotTouched() {
+        val viewModel = StoreViewModel()
+
+        assertFalse(viewModel.checkoutUiState.value.isFormValid)
+
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+
+        assertTrue(viewModel.checkoutUiState.value.isFormValid)
+    }
+
+    @Test
+    fun folioIncrementsWithEachConfirmedOrder() {
+        val viewModel = StoreViewModel()
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+        viewModel.addToOrder("book-1")
+
+        assertTrue(viewModel.confirmOrder())
+        assertEquals("#ORD-00001", viewModel.receipt.value?.folio)
+
+        viewModel.updateFullName("Juan Pérez")
+        viewModel.updatePhone("55987654")
+        viewModel.addToOrder("book-1")
+
+        assertTrue(viewModel.confirmOrder())
+        assertEquals("#ORD-00002", viewModel.receipt.value?.folio)
+    }
+
+    @Test
+    fun confirmedReceiptIsKeptAfterFormResetAndInvalidAttempts() {
+        val viewModel = StoreViewModel()
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+        viewModel.addToOrder("book-1")
+
+        assertTrue(viewModel.confirmOrder())
+        val receipt = viewModel.receipt.value
+        assertEquals("María Morales", receipt?.customerName)
+        assertEquals(viewModel.checkoutUiState.value, CheckoutUiState())
+
+        assertFalse(viewModel.confirmOrder())
+        assertEquals(receipt, viewModel.receipt.value)
+    }
+
+    @Test
+    fun confirmOrderEmptiesTheOrderAndDoesNothingWhenInvalid() {
+        val viewModel = StoreViewModel()
+
+        assertFalse(viewModel.confirmOrder())
+        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
+        assertEquals(null, viewModel.receipt.value)
+
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+        viewModel.addToOrder("book-1", quantity = 2)
+
+        assertTrue(viewModel.confirmOrder())
+        assertTrue(viewModel.uiState.value.orderLines.isEmpty())
+        assertEquals(0, viewModel.uiState.value.orderUnitCount)
+        assertEquals(BigDecimal.ZERO.setScale(2), viewModel.uiState.value.orderTotal)
     }
 }

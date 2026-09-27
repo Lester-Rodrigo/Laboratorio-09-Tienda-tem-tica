@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
                 val storeViewModel: StoreViewModel = viewModel()
                 val uiState by storeViewModel.uiState.collectAsStateWithLifecycle()
                 val checkoutUiState by storeViewModel.checkoutUiState.collectAsStateWithLifecycle()
+                val receipt by storeViewModel.receipt.collectAsStateWithLifecycle()
 
                 StoreNavigation(
                     books = uiState.books,
@@ -44,8 +45,8 @@ class MainActivity : ComponentActivity() {
                     onNitChange = storeViewModel::updateNit,
                     onBusinessNameChange = storeViewModel::updateBusinessName,
                     onPaymentMethodChange = storeViewModel::updatePaymentMethod,
-                    receipt = null,
-                    onConfirmOrder = {false}
+                    receipt = receipt,
+                    onConfirmOrder = storeViewModel::confirmOrder
                 )
             }
         }

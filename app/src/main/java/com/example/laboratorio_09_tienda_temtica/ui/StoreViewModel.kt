@@ -112,6 +112,9 @@ class StoreViewModel : ViewModel() {
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
+    private val _receipt = MutableStateFlow<OrderReceipt?>(null)
+    val receipt: StateFlow<OrderReceipt?> = _receipt.asStateFlow()
+    private var orderSequence = 0
 
     fun updateSearchQuery(query: String) {
         _uiState.update { currentState ->
@@ -306,5 +309,30 @@ class StoreViewModel : ViewModel() {
     
     fun updatePaymentMethod(value: PaymentMethod) {
         _checkoutUiState.update { currentState -> currentState.copy(paymentMethod = value) }
+    }
+
+    fun confirmOrder(): Boolean {
+        val checkout = _checkoutUiState.value
+        val order = _uiState.value
+        if (!checkout.isFormValid || order.orderUnitCount <= 0) {
+            return false
+        }
+        orderSequence += 1
+        _receipt.value = OrderReceipt(
+            folio = generateOrderFolio(orderSequence),
+            customerName = checkout.fullName,
+            billingType = checkout.billingType,
+            nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
+            businessName = if (checkout.billingType == BillingType.NIT) {
+                checkout.businessName
+            } else {
+                null
+            },
+            paymentMethod = checkout.paymentMethod,
+            total = order.orderTotal
+        )
+        _uiState.update { currentState -> currentState.withOrderLines(emptyList()) }
+        _checkoutUiState.value = CheckoutUiState()
+        return true
     }
 }
