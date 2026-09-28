@@ -101,6 +101,11 @@ private fun ReceiptCard(
             )
 
             ReceiptRow(
+                label = "Teléfono / WhatsApp",
+                value = receipt.customerPhone
+            )
+
+            ReceiptRow(
                 label = "Facturación",
                 value = billingDescription(receipt)
             )
@@ -127,8 +132,8 @@ private fun ReceiptCard(
 private fun ReceiptRow(
     label: String,
     value: String,
-    emphasize: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    emphasize: Boolean = false
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),

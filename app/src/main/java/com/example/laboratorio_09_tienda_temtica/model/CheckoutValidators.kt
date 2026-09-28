@@ -6,10 +6,11 @@ private const val MINIMUM_NIT_DIGITS = 5
 private const val MINIMUM_BUSINESS_NAME_CHARACTERS = 3
 
 fun validateFullName(value: String): String? {
-    if (value.any(Char::isDigit)) {
+    val trimmedValue = value.trim()
+    if (trimmedValue.any(Char::isDigit)) {
         return "El nombre no puede contener números."
     }
-    if (value.count(Char::isLetter) < MINIMUM_NAME_LETTERS) {
+    if (trimmedValue.count(Char::isLetter) < MINIMUM_NAME_LETTERS) {
         return "Ingresa un nombre con al menos 3 letras."
     }
     return null

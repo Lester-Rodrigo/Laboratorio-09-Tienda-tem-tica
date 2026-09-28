@@ -14,6 +14,7 @@ class CheckoutValidatorsTest {
     fun fullName_acceptsAccentsAndEnye() {
         assertNull(validateFullName("Íñigo"))
         assertNull(validateFullName("María José"))
+        assertNull(validateFullName("  Ana  "))
     }
 
     @Test

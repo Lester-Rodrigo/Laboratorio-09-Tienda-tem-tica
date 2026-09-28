@@ -5,6 +5,7 @@ import java.math.BigDecimal
 data class OrderReceipt(
     val folio: String,
     val customerName: String,
+    val customerPhone: String,
     val billingType: BillingType,
     val nit: String?,
     val businessName: String?,

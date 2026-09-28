@@ -4,7 +4,9 @@ import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
 import com.example.laboratorio_09_tienda_temtica.ui.BillingType
 import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
+import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
 import com.example.laboratorio_09_tienda_temtica.ui.StoreViewModel
+import com.example.laboratorio_09_tienda_temtica.ui.generateOrderFolio
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,6 +14,37 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoreViewModelTest {
+
+    @Test
+    fun checkoutInitialStateUsesCfAndCashWithUntouchedInvalidFields() {
+        val state = StoreViewModel().checkoutUiState.value
+
+        assertEquals(BillingType.CF, state.billingType)
+        assertEquals(PaymentMethod.CASH_ON_DELIVERY, state.paymentMethod)
+        assertFalse(state.isFullNameTouched)
+        assertFalse(state.isPhoneTouched)
+        assertFalse(state.isNitTouched)
+        assertFalse(state.isBusinessNameTouched)
+        assertEquals(null, state.visibleFullNameError)
+        assertEquals(null, state.visiblePhoneError)
+        assertFalse(state.isFormValid)
+    }
+
+    @Test
+    fun editingAndCorrectingCheckoutFieldsUpdatesVisibleErrors() {
+        val viewModel = StoreViewModel()
+
+        viewModel.updateFullName("A2")
+        viewModel.updatePhone("123")
+        assertEquals("El nombre no puede contener números.", viewModel.checkoutUiState.value.visibleFullNameError)
+        assertEquals("Ingresa exactamente 8 dígitos.", viewModel.checkoutUiState.value.visiblePhoneError)
+
+        viewModel.updateFullName("María José")
+        viewModel.updatePhone("55123456")
+        assertEquals(null, viewModel.checkoutUiState.value.visibleFullNameError)
+        assertEquals(null, viewModel.checkoutUiState.value.visiblePhoneError)
+        assertTrue(viewModel.checkoutUiState.value.isFormValid)
+    }
 
     @Test
     fun initialStateContainsRequiredCatalogData() {
@@ -242,6 +275,29 @@ class StoreViewModelTest {
     }
 
     @Test
+    fun switchingBackToNitKeepsFiscalValuesButRequiresThemAgain() {
+        val viewModel = StoreViewModel()
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+        viewModel.updateBillingType(BillingType.NIT)
+        viewModel.updateNit("123")
+        viewModel.updateBusinessName("Ab")
+
+        viewModel.updateBillingType(BillingType.CF)
+        assertTrue(viewModel.checkoutUiState.value.isFormValid)
+
+        viewModel.updateBillingType(BillingType.NIT)
+        val state = viewModel.checkoutUiState.value
+        assertEquals("123", state.nit)
+        assertEquals("Ab", state.businessName)
+        assertFalse(state.isNitTouched)
+        assertFalse(state.isBusinessNameTouched)
+        assertFalse(state.isFormValid)
+        assertEquals(null, state.visibleNitError)
+        assertEquals(null, state.visibleBusinessNameError)
+    }
+
+    @Test
     fun switchingBackToNitValidatesEmptyFieldsWithoutShowingErrorsUntilTouched() {
         val viewModel = StoreViewModel()
         viewModel.updateBillingType(BillingType.NIT)
@@ -286,6 +342,66 @@ class StoreViewModelTest {
 
         assertTrue(viewModel.confirmOrder())
         assertEquals("#ORD-00002", viewModel.receipt.value?.folio)
+    }
+
+    @Test
+    fun folioGeneratorUsesDeterministicPaddedSequence() {
+        assertEquals("#ORD-00001", generateOrderFolio(1))
+        assertEquals("#ORD-00002", generateOrderFolio(2))
+        assertEquals("#ORD-00123", generateOrderFolio(123))
+    }
+
+    @Test
+    fun validNitOrderCapturesReceiptBeforeResettingOrderAndForm() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1", quantity = 2)
+        viewModel.updateFullName("Ana López")
+        viewModel.updatePhone("55123456")
+        viewModel.updateBillingType(BillingType.NIT)
+        viewModel.updateNit("12345")
+        viewModel.updateBusinessName("Editorial Sol")
+        viewModel.updatePaymentMethod(PaymentMethod.BANK_TRANSFER)
+
+        assertTrue(viewModel.confirmOrder())
+
+        val receipt = requireNotNull(viewModel.receipt.value)
+        assertEquals("#ORD-00001", receipt.folio)
+        assertEquals("Ana López", receipt.customerName)
+        assertEquals("55123456", receipt.customerPhone)
+        assertEquals(BillingType.NIT, receipt.billingType)
+        assertEquals("12345", receipt.nit)
+        assertEquals("Editorial Sol", receipt.businessName)
+        assertEquals(PaymentMethod.BANK_TRANSFER, receipt.paymentMethod)
+        assertEquals(BigDecimal("179.80"), receipt.total)
+        assertEquals(0, viewModel.uiState.value.orderUnitCount)
+        assertEquals(CheckoutUiState(), viewModel.checkoutUiState.value)
+    }
+
+    @Test
+    fun invalidFormDoesNotDestroyExistingOrderOrAdvanceFolio() {
+        val viewModel = StoreViewModel()
+        viewModel.addToOrder("book-1")
+        val orderBefore = viewModel.uiState.value
+
+        assertFalse(viewModel.confirmOrder())
+        assertEquals(orderBefore, viewModel.uiState.value)
+        assertEquals(null, viewModel.receipt.value)
+
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+        assertTrue(viewModel.confirmOrder())
+        assertEquals("#ORD-00001", viewModel.receipt.value?.folio)
+    }
+
+    @Test
+    fun emptyOrderDoesNotConfirmEvenWithValidForm() {
+        val viewModel = StoreViewModel()
+        viewModel.updateFullName("María Morales")
+        viewModel.updatePhone("55123456")
+
+        assertFalse(viewModel.confirmOrder())
+        assertEquals(null, viewModel.receipt.value)
+        assertTrue(viewModel.checkoutUiState.value.isFormValid)
     }
 
     @Test
