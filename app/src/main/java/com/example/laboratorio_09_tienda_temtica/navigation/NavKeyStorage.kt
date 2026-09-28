@@ -12,6 +12,12 @@ data class BookDetailKey(
     val bookId: String
 ) : StoreNavKey
 @Serializable
+data object OrderKey : StoreNavKey
+@Serializable
+data object CheckoutKey : StoreNavKey
+@Serializable
+data object ConfirmationKey : StoreNavKey
+@Serializable
 data class AuthorProfileKey(
     val authorId: String
 ) : StoreNavKey
