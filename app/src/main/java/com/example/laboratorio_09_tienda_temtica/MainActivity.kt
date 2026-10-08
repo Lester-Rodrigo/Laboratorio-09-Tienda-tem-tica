@@ -22,9 +22,20 @@ class MainActivity : ComponentActivity() {
 
                 StoreNavigation(
                     books = uiState.books,
+                    filteredBooks = uiState.filteredBooks,
                     authors = uiState.authors,
                     favoriteBookIds = uiState.favoriteBookIds,
-                    onFavoriteClick = storeViewModel::toggleFavorite
+                    searchQuery = uiState.searchQuery,
+                    onSearchQueryChange = storeViewModel::updateSearchQuery,
+                    onClearSearch = storeViewModel::clearSearchQuery,
+                    onFavoriteClick = storeViewModel::toggleFavorite,
+                    orderLines = uiState.orderLines,
+                    orderTotal = uiState.orderTotal,
+                    orderUnitCount = uiState.orderUnitCount,
+                    onAddToOrder = { bookId -> storeViewModel.addToOrder(bookId) },
+                    onIncreaseQuantity = storeViewModel::increaseQuantity,
+                    onDecreaseQuantity = storeViewModel::decreaseQuantity,
+                    onRemoveFromOrder = storeViewModel::removeFromOrder
                 )
             }
         }
