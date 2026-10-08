@@ -8,12 +8,12 @@ import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
 import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
 import com.example.laboratorio_09_tienda_temtica.model.toMoney
-import java.math.BigDecimal
-import java.math.RoundingMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 class StoreViewModel : ViewModel() {
     private val originalBooks = listOf(
@@ -110,6 +110,11 @@ class StoreViewModel : ViewModel() {
         )
     )
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
+    private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
+    val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
+    private val _receipt = MutableStateFlow<OrderReceipt?>(null)
+    val receipt: StateFlow<OrderReceipt?> = _receipt.asStateFlow()
+    private var orderSequence = 0
 
     fun updateSearchQuery(query: String) {
         _uiState.update { currentState ->
@@ -234,5 +239,88 @@ class StoreViewModel : ViewModel() {
                 currentState.copy(favoriteBookIds = updatedFavorites)
             }
         }
+    }
+
+    fun updateFullName(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                fullName = value,
+                isFullNameTouched = true
+            )
+        }
+    }
+
+    fun updatePhone(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                phone = value,
+                isPhoneTouched = true
+            )
+        }
+    }
+
+    fun updateNit(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                nit = value,
+                isNitTouched = true
+            )
+        }
+    }
+
+    fun updateBusinessName(value: String) {
+        _checkoutUiState.update { currentState ->
+            currentState.copy(
+                businessName = value,
+                isBusinessNameTouched = true
+            )
+        }
+    }
+
+    fun updateBillingType(value: BillingType) {
+        _checkoutUiState.update { currentState ->
+            if (value == BillingType.CF) {
+                currentState.copy(
+                    billingType = BillingType.CF,
+                    isNitTouched = false,
+                    isBusinessNameTouched = false
+                )
+            } else {
+                currentState.copy(billingType = BillingType.NIT)
+            }
+        }
+    }
+    
+    fun updatePaymentMethod(value: PaymentMethod) {
+        _checkoutUiState.update { currentState -> currentState.copy(paymentMethod = value) }
+    }
+
+    @Synchronized
+    fun confirmOrder(): Boolean {
+        val checkout = _checkoutUiState.value
+        val order = _uiState.value
+        if (!checkout.isFormValid || order.orderUnitCount <= 0) {
+            return false
+        }
+        val nextSequence = orderSequence + 1
+        val confirmedReceipt = OrderReceipt(
+            folio = generateOrderFolio(nextSequence),
+            customerName = checkout.fullName,
+            customerPhone = checkout.phone,
+            billingType = checkout.billingType,
+            nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
+            businessName = if (checkout.billingType == BillingType.NIT) {
+                checkout.businessName
+            } else {
+                null
+            },
+            paymentMethod = checkout.paymentMethod,
+            total = order.orderTotal
+        )
+        _receipt.value = confirmedReceipt
+        _uiState.update { currentState -> currentState.withOrderLines(emptyList()) }
+        _checkoutUiState.value = CheckoutUiState()
+        orderSequence = nextSequence
+        return true
     }
 }

@@ -29,6 +29,12 @@ import com.example.laboratorio_09_tienda_temtica.ui.screens.AuthorProfileScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.BookDetailScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CatalogScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.OrderScreen
+import com.example.laboratorio_09_tienda_temtica.ui.BillingType
+import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
+import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
+import com.example.laboratorio_09_tienda_temtica.ui.screens.CheckoutScreen
+import com.example.laboratorio_09_tienda_temtica.ui.OrderReceipt
+import com.example.laboratorio_09_tienda_temtica.ui.screens.ConfirmationScreen
 import java.math.BigDecimal
 
 @Composable
@@ -48,6 +54,15 @@ fun StoreNavigation(
     onIncreaseQuantity: (String) -> OrderResult,
     onDecreaseQuantity: (String) -> Unit,
     onRemoveFromOrder: (String) -> Unit,
+    checkoutUiState: CheckoutUiState,
+    onFullNameChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
+    onBillingTypeChange: (BillingType) -> Unit,
+    onNitChange: (String) -> Unit,
+    onBusinessNameChange: (String) -> Unit,
+    onPaymentMethodChange: (PaymentMethod) -> Unit,
+    receipt: OrderReceipt?,
+    onConfirmOrder: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
     val backStack = rememberNavBackStack(CatalogKey)
@@ -149,6 +164,11 @@ fun StoreNavigation(
                     onIncrease = onIncreaseQuantity,
                     onDecrease = onDecreaseQuantity,
                     onRemove = onRemoveFromOrder,
+                    onContinueToCheckout = {
+                        if (backStack.lastOrNull() != CheckoutKey){
+                            backStack.add(CheckoutKey)
+                        }
+                    },
                     onGoToCatalog = {
                         while (backStack.size > 1) {
                             backStack.removeLastOrNull()
@@ -156,6 +176,46 @@ fun StoreNavigation(
                     },
                     onBackClick = navigateBack
                 )
+            }
+            entry<CheckoutKey> {
+                CheckoutScreen(
+                    uiState = checkoutUiState,
+                    orderTotal = orderTotal,
+                    orderUnitCount = orderUnitCount,
+                    onFullNameChange = onFullNameChange,
+                    onPhoneChange = onPhoneChange,
+                    onBillingTypeChange = onBillingTypeChange,
+                    onNitChange = onNitChange,
+                    onBusinessNameChange = onBusinessNameChange,
+                    onPaymentMethodChange = onPaymentMethodChange,
+                    onConfirmOrder = {
+                        val confirmed = onConfirmOrder()
+
+                        if (confirmed && backStack.lastOrNull() != ConfirmationKey){
+                            backStack.add(ConfirmationKey)
+                        }
+                    },
+                    onBackClick = navigateBack
+                )
+            }
+            entry<ConfirmationKey> {
+                val savedReceipt = receipt
+
+                if (savedReceipt != null) {
+                    ConfirmationScreen(
+                        receipt = savedReceipt,
+                        onGoToCatalog = {
+                            while (backStack.size > 1) {
+                                backStack.removeLastOrNull()
+                            }
+                        }
+                    )
+                } else {
+                    MissingDestinationScreen(
+                        message = "No se encontró el recibo confirmado.",
+                        onBackClick = navigateBack
+                    )
+                }
             }
             entry<AuthorProfileKey> { key ->
                 val selectedAuthor = authors.firstOrNull { author ->

@@ -19,6 +19,8 @@ class MainActivity : ComponentActivity() {
             Laboratorio_09_Tienda_temáticaTheme {
                 val storeViewModel: StoreViewModel = viewModel()
                 val uiState by storeViewModel.uiState.collectAsStateWithLifecycle()
+                val checkoutUiState by storeViewModel.checkoutUiState.collectAsStateWithLifecycle()
+                val receipt by storeViewModel.receipt.collectAsStateWithLifecycle()
 
                 StoreNavigation(
                     books = uiState.books,
@@ -35,7 +37,16 @@ class MainActivity : ComponentActivity() {
                     onAddToOrder = { bookId -> storeViewModel.addToOrder(bookId) },
                     onIncreaseQuantity = storeViewModel::increaseQuantity,
                     onDecreaseQuantity = storeViewModel::decreaseQuantity,
-                    onRemoveFromOrder = storeViewModel::removeFromOrder
+                    onRemoveFromOrder = storeViewModel::removeFromOrder,
+                    checkoutUiState = checkoutUiState,
+                    onFullNameChange = storeViewModel::updateFullName,
+                    onPhoneChange = storeViewModel::updatePhone,
+                    onBillingTypeChange = storeViewModel::updateBillingType,
+                    onNitChange = storeViewModel::updateNit,
+                    onBusinessNameChange = storeViewModel::updateBusinessName,
+                    onPaymentMethodChange = storeViewModel::updatePaymentMethod,
+                    receipt = receipt,
+                    onConfirmOrder = storeViewModel::confirmOrder
                 )
             }
         }
