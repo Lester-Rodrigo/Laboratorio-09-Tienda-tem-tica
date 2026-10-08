@@ -1,6 +1,14 @@
 package com.example.laboratorio_09_tienda_temtica.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.laboratorio_09_tienda_temtica.data.local.FavoriteEntity
+import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
+import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
+import com.example.laboratorio_09_tienda_temtica.data.preferences.DEFAULT_SORT_ORDER
+import com.example.laboratorio_09_tienda_temtica.data.preferences.StorePreferences
+import com.example.laboratorio_09_tienda_temtica.data.preferences.sortBooks
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
@@ -11,11 +19,17 @@ import com.example.laboratorio_09_tienda_temtica.model.toMoney
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-class StoreViewModel : ViewModel() {
+class StoreViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = StoreDatabase.getInstance(application)
+    private val storeDao = database.storeDao()
+    private val storePreferences = StorePreferences(application)
     private val originalBooks = listOf(
         Books(
             id = "book-1",
@@ -115,22 +129,56 @@ class StoreViewModel : ViewModel() {
     private val _receipt = MutableStateFlow<OrderReceipt?>(null)
     val receipt: StateFlow<OrderReceipt?> = _receipt.asStateFlow()
     private var orderSequence = 0
+    private var sortOrder = DEFAULT_SORT_ORDER
+
+    init {
+        storeDao.observeFavoriteBookIds()
+            .onEach { favoriteIds ->
+                _uiState.update { currentState ->
+                    currentState.copy(favoriteBookIds = favoriteIds.toSet())
+                }
+            }
+            .launchIn(viewModelScope)
+
+        storeDao.observeOrderLines()
+            .onEach { entities ->
+                _uiState.update { currentState ->
+                    currentState.withOrderLines(
+                        entities.mapNotNull { entity ->
+                            currentState.books.firstOrNull { it.id == entity.bookId }?.let { book ->
+                                OrderLine(
+                                    bookId = book.id,
+                                    title = book.title,
+                                    unitPrice = book.price.toMoney(),
+                                    quantity = entity.quantity
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
+
+        storePreferences.sortOrder
+            .onEach { savedSortOrder ->
+                sortOrder = savedSortOrder
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        filteredBooks = filterBooks(currentState.books, currentState.searchQuery)
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun updateSearchQuery(query: String) {
         _uiState.update { currentState ->
             if (query == currentState.searchQuery) {
                 currentState
             } else {
-                val normalizedQuery = query.trim()
                 currentState.copy(
                     searchQuery = query,
-                    filteredBooks = if (normalizedQuery.isEmpty()) {
-                        currentState.books
-                    } else {
-                        currentState.books.filter { book ->
-                            book.title.contains(normalizedQuery, ignoreCase = true)
-                        }
-                    }
+                    filteredBooks = filterBooks(currentState.books, query)
                 )
             }
         }
@@ -140,42 +188,44 @@ class StoreViewModel : ViewModel() {
         updateSearchQuery("")
     }
 
+    private fun filterBooks(books: List<Books>, query: String): List<Books> {
+        val normalizedQuery = query.trim()
+        val matchingBooks = if (normalizedQuery.isEmpty()) {
+            books
+        } else {
+            books.filter { book ->
+                book.title.contains(normalizedQuery, ignoreCase = true)
+            }
+        }
+        return sortBooks(matchingBooks, sortOrder)
+    }
+
+    fun updateSortOrder(newSortOrder: String) {
+        viewModelScope.launch {
+            storePreferences.saveSortOrder(newSortOrder)
+        }
+    }
+
     fun findBookById(bookId: String): Books? =
         _uiState.value.books.firstOrNull { book -> book.id == bookId }
 
     fun addToOrder(bookId: String, quantity: Int = 1): OrderResult {
-        var result = OrderResult.ADDED
-        _uiState.update { currentState ->
-            val book = currentState.books.firstOrNull { it.id == bookId }
-            val currentQuantity = currentState.orderLines
-                .firstOrNull { it.bookId == bookId }
-                ?.quantity ?: 0
-            result = when {
-                book == null -> OrderResult.BOOK_NOT_FOUND
-                quantity <= 0 -> OrderResult.INVALID_QUANTITY
-                currentQuantity + quantity > book.stock -> OrderResult.INSUFFICIENT_STOCK
-                else -> OrderResult.ADDED
-            }
-            if (result != OrderResult.ADDED || book == null) {
-                currentState
-            } else {
-                val updatedLines = if (currentQuantity == 0) {
-                    currentState.orderLines + OrderLine(
-                        bookId = book.id,
-                        title = book.title,
-                        unitPrice = book.price.toMoney(),
-                        quantity = quantity
-                    )
-                } else {
-                    currentState.orderLines.map { line ->
-                        if (line.bookId == bookId) {
-                            line.copy(quantity = line.quantity + quantity)
-                        } else {
-                            line
-                        }
-                    }
-                }
-                currentState.withOrderLines(updatedLines)
+        val currentState = _uiState.value
+        val book = currentState.books.firstOrNull { it.id == bookId }
+        val currentQuantity = currentState.orderLines
+            .firstOrNull { it.bookId == bookId }
+            ?.quantity ?: 0
+        val result = when {
+            book == null -> OrderResult.BOOK_NOT_FOUND
+            quantity <= 0 -> OrderResult.INVALID_QUANTITY
+            currentQuantity + quantity > book.stock -> OrderResult.INSUFFICIENT_STOCK
+            else -> OrderResult.ADDED
+        }
+        if (result == OrderResult.ADDED) {
+            viewModelScope.launch {
+                storeDao.upsertOrderLine(
+                    OrderLineEntity(bookId = bookId, quantity = currentQuantity + quantity)
+                )
             }
         }
         return result
@@ -189,31 +239,24 @@ class StoreViewModel : ViewModel() {
     }
 
     fun decreaseQuantity(bookId: String) {
-        _uiState.update { currentState ->
-            if (currentState.orderLines.none { it.bookId == bookId }) {
-                currentState
+        val line = _uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
+        viewModelScope.launch {
+            if (line.quantity <= 1) {
+                storeDao.deleteOrderLine(bookId)
             } else {
-                val updatedLines = currentState.orderLines.mapNotNull { line ->
-                    when {
-                        line.bookId != bookId -> line
-                        line.quantity <= 1 -> null
-                        else -> line.copy(quantity = line.quantity - 1)
-                    }
-                }
-                currentState.withOrderLines(updatedLines)
+                storeDao.upsertOrderLine(
+                    OrderLineEntity(bookId = bookId, quantity = line.quantity - 1)
+                )
             }
         }
     }
 
     fun removeFromOrder(bookId: String) {
-        _uiState.update { currentState ->
-            if (currentState.orderLines.none { it.bookId == bookId }) {
-                currentState
-            } else {
-                currentState.withOrderLines(
-                    currentState.orderLines.filterNot { it.bookId == bookId }
-                )
-            }
+        if (_uiState.value.orderLines.none { it.bookId == bookId }) {
+            return
+        }
+        viewModelScope.launch {
+            storeDao.deleteOrderLine(bookId)
         }
     }
 
@@ -227,16 +270,15 @@ class StoreViewModel : ViewModel() {
         )
 
     fun toggleFavorite(bookId: String) {
-        _uiState.update { currentState ->
-            if (currentState.books.none { it.id == bookId }) {
-                currentState
+        val currentState = _uiState.value
+        if (currentState.books.none { it.id == bookId }) {
+            return
+        }
+        viewModelScope.launch {
+            if (bookId in currentState.favoriteBookIds) {
+                storeDao.deleteFavorite(bookId)
             } else {
-                val updatedFavorites = if (bookId in currentState.favoriteBookIds) {
-                    currentState.favoriteBookIds - bookId
-                } else {
-                    currentState.favoriteBookIds + bookId
-                }
-                currentState.copy(favoriteBookIds = updatedFavorites)
+                storeDao.upsertFavorite(FavoriteEntity(bookId = bookId))
             }
         }
     }
@@ -318,7 +360,9 @@ class StoreViewModel : ViewModel() {
             total = order.orderTotal
         )
         _receipt.value = confirmedReceipt
-        _uiState.update { currentState -> currentState.withOrderLines(emptyList()) }
+        viewModelScope.launch {
+            storeDao.clearOrder()
+        }
         _checkoutUiState.value = CheckoutUiState()
         orderSequence = nextSequence
         return true
