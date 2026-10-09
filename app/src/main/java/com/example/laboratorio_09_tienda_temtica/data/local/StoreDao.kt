@@ -13,6 +13,8 @@ interface StoreDao {
     suspend fun upsertFavorite(favorite: FavoriteEntity)
     @Query("DELETE FROM favorites WHERE bookId = :bookId")
     suspend fun deleteFavorite(bookId: String)
+    @Query("DELETE FROM favorites")
+    suspend fun clearFavorites()
     @Query("SELECT * FROM order_lines ORDER BY bookId")
     fun observeOrderLines(): Flow<List<OrderLineEntity>>
     @Upsert
