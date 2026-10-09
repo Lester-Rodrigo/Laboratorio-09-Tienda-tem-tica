@@ -5,8 +5,8 @@ Este documento reúne la información que debe copiarse o enlazarse en la descri
 ## Integrantes y versión evaluable
 
 - Integrantes: **PENDIENTE**
-- Rama base: **PENDIENTE: confirmar la rama principal usada por el equipo**
-- PR del Laboratorio 11: **PENDIENTE**
+- Rama base: `main`
+- PR del Laboratorio 11: [PR #3](https://github.com/Lester-Rodrigo/Laboratorio-09-Tienda-tem-tica/pull/3)
 - SHA final evaluable: **PENDIENTE: completar después del último commit**
 
 ## Tabla de decisiones
@@ -27,7 +27,7 @@ Este documento reúne la información que debe copiarse o enlazarse en la descri
 
 ### ¿Por qué rotar no demuestra persistencia?
 
-El `ViewModel` sobrevive a un cambio de configuración, por lo que un dato que existe únicamente en memoria puede continuar visible después de rotar. El recorrido válido es marcar favoritos, armar un pedido y seleccionar el orden; detener el proceso con **Stop** o **Forzar detención**; y abrir la app nuevamente desde su ícono. Solo entonces se comprueba que Room y DataStore reconstruyen el estado desde disco. El resultado observado debe completarse después de ejecutar esta prueba en un dispositivo o emulador.
+El `ViewModel` sobrevive a un cambio de configuración, por lo que un dato que existe únicamente en memoria puede continuar visible después de rotar. El recorrido válido es marcar favoritos, armar un pedido y seleccionar el orden; detener el proceso con **Forzar detención**; y abrir la app nuevamente desde su ícono. En el emulador `Pixel_10a` se comprobó que Room restauró favoritos y las líneas con cantidades 2 y 1, mientras DataStore aplicó nuevamente el orden por precio. Después de confirmar y repetir el recorrido, el pedido abrió vacío y el favorito restante continuó marcado.
 
 ### Dato que no se guarda y costo de guardarlo
 
@@ -35,20 +35,26 @@ El catálogo no se guarda porque puede regenerarse exactamente con la semilla fi
 
 ## Comprobaciones manuales
 
-No completar la columna **Observado** hasta ejecutar cada recorrido con el APK correspondiente al SHA evaluable.
-
 | Recorrido | Resultado esperado | Observado |
 |---|---|---|
-| Favoritos | Marcar dos libros, detener y reabrir: ambos siguen marcados en catálogo y detalle. | **PENDIENTE EN DISPOSITIVO** |
-| Desmarcar | Desmarcar uno, detener y reabrir: permanece desmarcado. | **PENDIENTE EN DISPOSITIVO** |
-| Pedido | Agregar dos libros, uno con cantidad 2, detener y reabrir: mismas líneas, cantidades y total. Superar existencias se rechaza y no modifica Room. | **PENDIENTE EN DISPOSITIVO** |
-| Confirmación | Confirmar, detener y reabrir: el pedido permanece en 0 unidades y los favoritos no cambian. | **PENDIENTE EN DISPOSITIVO** |
-| Preferencia | Elegir orden por precio, detener y reabrir: el catálogo abre ordenado por precio. | **PENDIENTE EN DISPOSITIVO** |
+| Favoritos | Marcar dos libros, detener y reabrir: ambos siguen marcados en catálogo y detalle. | **Cumple.** Se marcaron “Cien años de soledad” y “El amor en los tiempos del cólera”; después de forzar la detención y abrir desde el ícono, Room los restauró. |
+| Desmarcar | Desmarcar uno, detener y reabrir: permanece desmarcado. | **Cumple.** Se buscó y desmarcó “Cien años de soledad”; después de otra detención y reapertura apareció con estrella vacía. La inspección final de SQLite conservó únicamente `book-3`. |
+| Pedido | Agregar dos libros, uno con cantidad 2, detener y reabrir: mismas líneas, cantidades y total. Superar existencias se rechaza y no modifica Room. | **Cumple.** Se restauraron “Cien años de soledad” con cantidad 2 y “El principito” con cantidad 1, total `Q 388.90`. Al intentar superar el stock de 3, la cantidad permaneció en 3 y se mostró el rechazo “No hay más existencias…”. |
+| Confirmación | Confirmar, detener y reabrir: el pedido permanece en 0 unidades y los favoritos no cambian. | **Cumple.** Tras confirmar, detener y abrir desde el ícono, “Mi pedido” mostró el estado vacío y el favorito restante siguió almacenado. |
+| Preferencia | Elegir orden por precio, detener y reabrir: el catálogo abre con la preferencia aplicada. | **Cumple.** En cada reapertura apareció seleccionado “Por precio”; el archivo de DataStore contiene `sort_order = price`. |
+
+## Verificación automatizada
+
+- `test`: 19 pruebas JVM aprobadas.
+- `assembleDebug`: compilación correcta del APK correspondiente a `b65dfe5`.
+- `connectedDebugAndroidTest`: 3 pruebas aprobadas en `Pixel_10a` (API 36), incluidas inserción/observación/borrado de Room y persistencia de DataStore.
+- `lintDebug`: correcto, sin errores.
+- Inspección final de SQLite: un favorito (`book-3`) y cero líneas del pedido después de confirmar.
 
 ## Evidencias pendientes de adjuntar
 
-- Captura del Database Inspector mostrando `favorites` y `order_lines` con filas; añadir otra evidencia de las filas eliminadas tras desmarcar o confirmar.
-- Video continuo de máximo tres minutos con los recorridos exigidos, incluida la detención visible del proceso y la reapertura desde el ícono.
+- **PENDIENTE:** captura de Android Studio Database Inspector mostrando `favorites` y `order_lines`. La base ya fue validada mediante pruebas instrumentadas y consulta directa, pero esta captura debe realizarse desde Android Studio para cumplir el formato solicitado.
+- Video continuo: [`evidence/lab12-local-persistence.mp4`](evidence/lab12-local-persistence.mp4), duración `02:53`. Incluye favoritos, desmarcado, pedido persistido, orden por precio, detenciones y reaperturas desde el ícono, confirmación, pedido vacío y rotación.
 - URL del PR abierto y sin fusionar.
 - SHA final evaluable.
 

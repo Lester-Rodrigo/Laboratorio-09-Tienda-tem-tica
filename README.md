@@ -87,3 +87,10 @@ Las transiciones siguen la guía oficial de Android para
 
 La grabación debe realizarse manualmente en un emulador o dispositivo; no forma parte del
 proceso automatizado de compilación.
+
+## Evidencia del Laboratorio 12
+
+El recorrido continuo de persistencia local está disponible en
+[`evidence/lab12-local-persistence.mp4`](evidence/lab12-local-persistence.mp4). Dura 2:53
+y muestra favoritos, desmarcado, pedido con dos líneas, orden por precio, detención del
+proceso, reapertura desde el ícono, confirmación, pedido vacío y rotación.
