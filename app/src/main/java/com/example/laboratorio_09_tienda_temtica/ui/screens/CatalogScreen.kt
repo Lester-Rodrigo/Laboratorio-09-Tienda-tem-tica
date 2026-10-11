@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
 import kotlinx.coroutines.launch
 
@@ -52,8 +54,10 @@ fun CatalogScreen(
     books: List<Books>,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    sortOrder: CatalogSortOrder,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
+    onSortOrderChange: (CatalogSortOrder) -> Unit,
     onBookClick: (String) -> Unit,
     onFavoriteClick: (String) -> Unit,
     orderUnitCount: Int,
@@ -77,6 +81,12 @@ fun CatalogScreen(
     val clearQueryAndResetScroll: () -> Unit = {
         if (searchQuery.isNotEmpty()) {
             onClearSearch()
+            coroutineScope.launch { gridState.scrollToItem(0) }
+        }
+    }
+    val updateSortAndResetScroll: (CatalogSortOrder) -> Unit = { newSortOrder ->
+        if (newSortOrder != sortOrder) {
+            onSortOrderChange(newSortOrder)
             coroutineScope.launch { gridState.scrollToItem(0) }
         }
     }
@@ -135,6 +145,10 @@ fun CatalogScreen(
                 Text(
                     text = "Selecciona un libro para conocer sus detalles.",
                     style = MaterialTheme.typography.bodyLarge
+                )
+                CatalogSortSelector(
+                    sortOrder = sortOrder,
+                    onSortOrderChange = updateSortAndResetScroll
                 )
                 OutlinedTextField(
                     value = searchQuery,
@@ -209,6 +223,35 @@ fun CatalogScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CatalogSortSelector(
+    sortOrder: CatalogSortOrder,
+    onSortOrderChange: (CatalogSortOrder) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = "Orden del catálogo",
+            style = MaterialTheme.typography.labelLarge
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = sortOrder == CatalogSortOrder.NAME,
+                onClick = { onSortOrderChange(CatalogSortOrder.NAME) },
+                label = { Text(text = "Por nombre") }
+            )
+            FilterChip(
+                selected = sortOrder == CatalogSortOrder.PRICE,
+                onClick = { onSortOrderChange(CatalogSortOrder.PRICE) },
+                label = { Text(text = "Por precio") }
+            )
         }
     }
 }

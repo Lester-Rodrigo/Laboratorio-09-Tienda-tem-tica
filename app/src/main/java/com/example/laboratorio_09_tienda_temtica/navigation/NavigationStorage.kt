@@ -23,6 +23,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.ui.screens.AuthorProfileScreen
@@ -44,8 +45,10 @@ fun StoreNavigation(
     authors: List<AuthorProfile>,
     favoriteBookIds: Set<String>,
     searchQuery: String,
+    sortOrder: CatalogSortOrder,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
+    onSortOrderChange: (CatalogSortOrder) -> Unit,
     onFavoriteClick: (String) -> Unit,
     orderLines: List<OrderLine>,
     orderTotal: BigDecimal,
@@ -119,8 +122,10 @@ fun StoreNavigation(
                     books = filteredBooks,
                     favoriteBookIds = favoriteBookIds,
                     searchQuery = searchQuery,
+                    sortOrder = sortOrder,
                     onSearchQueryChange = onSearchQueryChange,
                     onClearSearch = onClearSearch,
+                    onSortOrderChange = onSortOrderChange,
                     onBookClick = { bookId -> backStack.add(BookDetailKey(bookId = bookId)) },
                     onFavoriteClick = onFavoriteClick,
                     orderUnitCount = orderUnitCount,
