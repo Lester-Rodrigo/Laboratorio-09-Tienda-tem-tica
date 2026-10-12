@@ -50,4 +50,8 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 jetbrains-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+<<<<<<< HEAD
 
+=======
+androidx-room3 = { id = "androidx.room3", version.ref = "room3" }
+>>>>>>> a45b35e482944216e609e115734192bc6b010d16

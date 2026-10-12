@@ -3,12 +3,20 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.jetbrains.kotlin.serialization)
     alias(libs.plugins.ksp)
+<<<<<<< HEAD
+=======
+    alias(libs.plugins.androidx.room3)
+>>>>>>> a45b35e482944216e609e115734192bc6b010d16
 }
 
 android {
     namespace = "com.example.laboratorio_09_tienda_temtica"
     compileSdk {
         version = release(37)
+    }
+
+room3 {
+        schemaDirectory("$projectDir/schemas")
     }
 
     defaultConfig {
