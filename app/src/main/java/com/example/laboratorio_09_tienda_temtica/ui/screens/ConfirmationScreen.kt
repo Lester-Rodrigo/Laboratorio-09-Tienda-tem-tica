@@ -20,14 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderDto
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
-import com.example.laboratorio_09_tienda_temtica.ui.BillingType
-import com.example.laboratorio_09_tienda_temtica.ui.OrderReceipt
-import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
 
 @Composable
 fun ConfirmationScreen(
-    receipt: OrderReceipt,
+    order: OrderDto,
     onGoToCatalog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -44,7 +43,6 @@ fun ConfirmationScreen(
             style = MaterialTheme.typography.displayMedium,
             color = MaterialTheme.colorScheme.primary
         )
-
         Text(
             text = "¡Pedido confirmado!",
             modifier = Modifier.padding(top = 8.dp),
@@ -52,20 +50,51 @@ fun ConfirmationScreen(
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
-
         Text(
-            text = "Orden registrada exitosamente en tu librería.",
+            text = "El pedido fue registrado correctamente.",
             modifier = Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-
-        ReceiptCard(
-            receipt = receipt,
-            modifier = Modifier.padding(top = 24.dp)
-        )
-
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ConfirmationRow(
+                    label = "ID del servidor",
+                    value = order.id
+                )
+                ConfirmationRow(
+                    label = "Facturación",
+                    value = order.billingType
+                )
+                ConfirmationRow(
+                    label = "Método de pago",
+                    value = order.paymentMethod
+                )
+                HorizontalDivider()
+                Text(
+                    text = "Productos",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                order.lines.forEach { line ->
+                    ConfirmationOrderLine(line = line)
+                }
+                HorizontalDivider()
+                ConfirmationRow(
+                    label = "Total",
+                    value = formatRemotePrice(order.total),
+                    emphasize = true
+                )
+            }
+        }
         Button(
             onClick = onGoToCatalog,
             modifier = Modifier
@@ -79,122 +108,62 @@ fun ConfirmationScreen(
 }
 
 @Composable
-private fun ReceiptCard(
-    receipt: OrderReceipt,
-    modifier: Modifier = Modifier
+private fun ConfirmationOrderLine(
+    line: OrderLineDto
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ReceiptRow(
-                label = "Folio",
-                value = receipt.folio
-            )
-
-            ReceiptRow(
-                label = "Cliente",
-                value = receipt.customerName
-            )
-
-            ReceiptRow(
-                label = "Teléfono / WhatsApp",
-                value = receipt.customerPhone
-            )
-
-            ReceiptRow(
-                label = "Facturación",
-                value = billingDescription(receipt)
-            )
-
-            ReceiptRow(
-                label = "Método de pago",
-                value = paymentDescription(receipt.paymentMethod)
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
-
-            ReceiptRow(
-                label = "Total del pedido",
-                value = formatQuetzales(receipt.total),
-                emphasize = true
-            )
-        }
+        Text(
+            text = line.title,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = "${line.quantity} × ${formatRemotePrice(line.unitPrice)}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "Subtotal: ${formatRemotePrice(line.subtotal)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
 @Composable
-private fun ReceiptRow(
+private fun ConfirmationRow(
     label: String,
     value: String,
-    modifier: Modifier = Modifier,
     emphasize: Boolean = false
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
         Text(
             text = "$label:",
             modifier = Modifier.weight(1f),
-            style = if (emphasize) {
-                MaterialTheme.typography.titleMedium
-            } else {
-                MaterialTheme.typography.bodyMedium
-            },
-            fontWeight = if (emphasize) {
-                FontWeight.Bold
-            } else {
-                FontWeight.Normal
-            }
+            fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Normal
         )
         Text(
             text = value,
             modifier = Modifier
                 .weight(1.4f)
                 .padding(start = 12.dp),
-            style = if (emphasize) {
-                MaterialTheme.typography.titleMedium
-            } else {
-                MaterialTheme.typography.bodyMedium
-            },
             color = if (emphasize) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
-            fontWeight = if (emphasize) {
-                FontWeight.Bold
-            } else {
-                FontWeight.Normal
-            },
+            fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.End
         )
     }
 }
-private fun billingDescription(receipt: OrderReceipt): String =
-    when (receipt.billingType) {
-        BillingType.CF -> "CF (Consumidor Final)"
 
-        BillingType.NIT -> buildString {
-            append("NIT ${receipt.nit.orEmpty()}")
-
-            if (!receipt.businessName.isNullOrBlank()) {
-                append(" · ")
-                append(receipt.businessName)
-            }
-        }
-    }
-private fun paymentDescription(
-    paymentMethod: PaymentMethod
-): String =
-    when (paymentMethod) {
-        PaymentMethod.CASH_ON_DELIVERY -> "Efectivo contra entrega"
-        PaymentMethod.BANK_TRANSFER -> "Transferencia bancaria"
-    }
+private fun formatRemotePrice(value: String): String =
+    value.toBigDecimalOrNull()
+        ?.let(::formatQuetzales)
+        ?: value
