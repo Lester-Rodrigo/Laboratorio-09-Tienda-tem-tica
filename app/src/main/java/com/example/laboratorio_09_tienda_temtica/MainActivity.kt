@@ -9,6 +9,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.laboratorio_09_tienda_temtica.navigation.StoreNavigation
 import com.example.laboratorio_09_tienda_temtica.ui.StoreViewModel
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
+import com.example.laboratorio_09_tienda_temtica.ui.orders.OrdersViewModel
 import com.example.laboratorio_09_tienda_temtica.ui.theme.Laboratorio_09_Tienda_temáticaTheme
 
 class MainActivity : ComponentActivity() {
@@ -20,7 +22,10 @@ class MainActivity : ComponentActivity() {
                 val storeViewModel: StoreViewModel = viewModel()
                 val uiState by storeViewModel.uiState.collectAsStateWithLifecycle()
                 val checkoutUiState by storeViewModel.checkoutUiState.collectAsStateWithLifecycle()
-                val receipt by storeViewModel.receipt.collectAsStateWithLifecycle()
+                val submitOrderUiState by storeViewModel.submitOrderUiState.collectAsStateWithLifecycle()
+                val ordersViewModel: OrdersViewModel = viewModel()
+                val ordersUiState by ordersViewModel.ordersUiState.collectAsStateWithLifecycle()
+                val orderDetailUiState by ordersViewModel.orderDetailUiState.collectAsStateWithLifecycle()
 
                 StoreNavigation(
                     books = uiState.books,
@@ -47,8 +52,14 @@ class MainActivity : ComponentActivity() {
                     onNitChange = storeViewModel::updateNit,
                     onBusinessNameChange = storeViewModel::updateBusinessName,
                     onPaymentMethodChange = storeViewModel::updatePaymentMethod,
-                    receipt = receipt,
-                    onConfirmOrder = storeViewModel::confirmOrder
+                    submitOrderUiState = submitOrderUiState,
+                    onConfirmOrder = storeViewModel::confirmOrder,
+                    onRetryOrder = storeViewModel::confirmOrder,
+                    onResetSubmitOrderState = storeViewModel::resetSubmitOrderState,
+                    ordersUiState = ordersUiState,
+                    orderDetailUiState = orderDetailUiState,
+                    onLoadOrders = ordersViewModel::loadOrders,
+                    onLoadOrderDetail = ordersViewModel::loadOrderDetail
                 )
             }
         }

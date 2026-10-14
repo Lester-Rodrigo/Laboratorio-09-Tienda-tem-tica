@@ -1,6 +1,8 @@
 package com.example.laboratorio_09_tienda_temtica.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material3.CircularProgressIndicator
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,6 +68,7 @@ fun CheckoutScreen(
     onPaymentMethodChange: (PaymentMethod) -> Unit,
     onConfirmOrder: () -> Unit,
     onBackClick: () -> Unit,
+    submitOrderUiState: SubmitOrderUiState,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -75,7 +78,9 @@ fun CheckoutScreen(
     val currentOrderUnitCount by rememberUpdatedState(orderUnitCount)
     val isConfirmEnabled by remember {
         derivedStateOf {
-            currentUiState.isFormValid && currentOrderUnitCount > 0
+            currentUiState.isFormValid &&
+                    currentOrderUnitCount > 0 &&
+                    submitOrderUiState !is SubmitOrderUiState.Loading
         }
     }
 
@@ -310,6 +315,20 @@ fun CheckoutScreen(
                     }
                 )
             }
+            if (submitOrderUiState is SubmitOrderUiState.Error) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = submitOrderUiState.message,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
             Button(
                 onClick = onConfirmOrder,
                 enabled = isConfirmEnabled,
@@ -317,11 +336,28 @@ fun CheckoutScreen(
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
             ) {
-                Text(
-                    text = "Confirmar pedido " + "(${formatQuetzales(orderTotal)})"
-                )
+                when (submitOrderUiState) {
+                    SubmitOrderUiState.Loading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.heightIn(max = 24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = "Enviando pedido…",
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    is SubmitOrderUiState.Error -> {
+                        Text(text = "Reintentar")
+                    }
+                    else -> {
+                        Text(
+                            text = "Confirmar pedido (${formatQuetzales(orderTotal)})"
+                        )
+                    }
+                }
             }
-
             if (!isConfirmEnabled) {
                 Text(
                     text = if (orderUnitCount == 0) {

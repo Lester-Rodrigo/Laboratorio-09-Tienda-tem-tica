@@ -21,6 +21,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.laboratorio_09_tienda_temtica.data.remote.CreateOrderRequestDto
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderRemoteClient
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
+import java.io.IOException
+import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerializationException
+import retrofit2.HttpException
 
 class StoreViewModel(application: Application) : AndroidViewModel(application) {
     private val database = StoreDatabase.getInstance(application)
@@ -142,9 +151,11 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     )
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
-    private val _receipt = MutableStateFlow<OrderReceipt?>(null)
-    val receipt: StateFlow<OrderReceipt?> = _receipt.asStateFlow()
-    private var orderSequence = 0
+    private val _submitOrderUiState =
+        MutableStateFlow<SubmitOrderUiState>(SubmitOrderUiState.Idle)
+
+    val submitOrderUiState: StateFlow<SubmitOrderUiState> =
+        _submitOrderUiState.asStateFlow()
 
     fun updateSearchQuery(query: String) {
         if (query != searchQuery.value) {
@@ -280,33 +291,66 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     @Synchronized
-    fun confirmOrder(): Boolean {
-        val checkout = _checkoutUiState.value
-        val order = uiState.value
-        if (!checkout.isFormValid || order.orderUnitCount <= 0) {
-            return false
+    fun confirmOrder() {
+        if (_submitOrderUiState.value is SubmitOrderUiState.Loading) {
+            return
         }
-        val nextSequence = orderSequence + 1
-        val confirmedReceipt = OrderReceipt(
-            folio = generateOrderFolio(nextSequence),
-            customerName = checkout.fullName,
-            customerPhone = checkout.phone,
-            billingType = checkout.billingType,
-            nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
-            businessName = if (checkout.billingType == BillingType.NIT) {
-                checkout.businessName
-            } else {
-                null
+
+        val checkoutSnapshot = _checkoutUiState.value
+        val orderSnapshot = uiState.value
+
+        if (!checkoutSnapshot.isFormValid || orderSnapshot.orderLines.isEmpty()) {
+            return
+        }
+
+        val request = CreateOrderRequestDto(
+            createdAt = Instant.now().toString(),
+            billingType = checkoutSnapshot.billingType.name,
+            total = orderSnapshot.orderTotal.toPlainString(),
+            lines = orderSnapshot.orderLines.map { line ->
+                OrderLineDto(
+                    bookId = line.bookId,
+                    title = line.title,
+                    unitPrice = line.unitPrice.toPlainString(),
+                    quantity = line.quantity,
+                    subtotal = line.subtotal.toPlainString()
+                )
             },
-            paymentMethod = checkout.paymentMethod,
-            total = order.orderTotal
+            paymentMethod = checkoutSnapshot.paymentMethod.name
         )
-        _receipt.value = confirmedReceipt
+
+        _submitOrderUiState.value = SubmitOrderUiState.Loading
+
         viewModelScope.launch {
-            storeDao.clearOrder()
+            try {
+                val createdOrder =
+                    OrderRemoteClient.orderApi.createOrder(request)
+
+                _submitOrderUiState.value =
+                    SubmitOrderUiState.Success(createdOrder)
+
+                storeDao.clearOrder()
+                _checkoutUiState.value = CheckoutUiState()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: IOException) {
+                _submitOrderUiState.value = SubmitOrderUiState.Error(
+                    message = "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo nuevamente."
+                )
+            } catch (exception: HttpException) {
+                _submitOrderUiState.value = SubmitOrderUiState.Error(
+                    message = "El servidor no pudo registrar el pedido. Inténtalo nuevamente."
+                )
+            } catch (exception: SerializationException) {
+                _submitOrderUiState.value = SubmitOrderUiState.Error(
+                    message = "La respuesta del servidor no pudo procesarse."
+                )
+            }
         }
-        _checkoutUiState.value = CheckoutUiState()
-        orderSequence = nextSequence
-        return true
+    }
+    fun resetSubmitOrderState() {
+        if (_submitOrderUiState.value !is SubmitOrderUiState.Loading) {
+            _submitOrderUiState.value = SubmitOrderUiState.Idle
+        }
     }
 }
