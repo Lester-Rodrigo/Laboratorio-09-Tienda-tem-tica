@@ -21,3 +21,9 @@ data object ConfirmationKey : StoreNavKey
 data class AuthorProfileKey(
     val authorId: String
 ) : StoreNavKey
+@Serializable
+data object OrdersKey : StoreNavKey
+@Serializable
+data class OrderDetailKey(
+    val orderId: String
+) : StoreNavKey

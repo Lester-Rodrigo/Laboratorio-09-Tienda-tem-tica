@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -62,6 +63,7 @@ fun CatalogScreen(
     onFavoriteClick: (String) -> Unit,
     orderUnitCount: Int,
     onOrderClick: () -> Unit,
+    onMyOrdersClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
@@ -99,6 +101,9 @@ fun CatalogScreen(
                     Text(text = "Librería Literaria")
                 },
                 actions = {
+                    TextButton(onClick = onMyOrdersClick) {
+                        Text(text = "Mis pedidos")
+                    }
                     OrderAccessButton(
                         unitCount = orderUnitCount,
                         onClick = onOrderClick
