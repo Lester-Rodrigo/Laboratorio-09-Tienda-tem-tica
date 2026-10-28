@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room3)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -62,6 +63,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.room3.runtime)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
     ksp(libs.androidx.room3.compiler)
     implementation(libs.androidx.sqlite.framework)
     implementation(libs.androidx.datastore.preferences)

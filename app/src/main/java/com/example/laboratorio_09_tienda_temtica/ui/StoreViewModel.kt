@@ -7,29 +7,29 @@ import com.example.laboratorio_09_tienda_temtica.data.local.FavoriteEntity
 import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
 import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
 import com.example.laboratorio_09_tienda_temtica.data.preferences.StorePreferences
+import com.example.laboratorio_09_tienda_temtica.data.remote.CreateOrderRequestDto
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderRemoteClient
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
 import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
-import kotlinx.coroutines.flow.SharingStarted
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.example.laboratorio_09_tienda_temtica.data.remote.CreateOrderRequestDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderRemoteClient
-import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
-import java.io.IOException
-import java.time.Instant
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
+import java.io.IOException
+import java.time.Instant
 
 class StoreViewModel(application: Application) : AndroidViewModel(application) {
     private val database = StoreDatabase.getInstance(application)
