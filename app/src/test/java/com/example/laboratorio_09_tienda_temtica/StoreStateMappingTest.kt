@@ -6,13 +6,18 @@ import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogReadError
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
 import com.example.laboratorio_09_tienda_temtica.ui.BillingType
+import com.example.laboratorio_09_tienda_temtica.ui.CatalogStatus
 import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
 import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
 import com.example.laboratorio_09_tienda_temtica.ui.buildStoreUiState
+import com.example.laboratorio_09_tienda_temtica.ui.availableBooks
 import com.example.laboratorio_09_tienda_temtica.ui.calculateOrderTotal
 import com.example.laboratorio_09_tienda_temtica.ui.filterAndSortBooks
 import com.example.laboratorio_09_tienda_temtica.ui.generateOrderFolio
+import com.example.laboratorio_09_tienda_temtica.ui.toCatalogStatus
 import com.example.laboratorio_09_tienda_temtica.ui.validateOrderAddition
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
@@ -143,6 +148,35 @@ class StoreStateMappingTest {
     fun folioGeneratorRemainsDeterministic() {
         assertEquals("#ORD-00001", generateOrderFolio(1))
         assertEquals("#ORD-00123", generateOrderFolio(123))
+    }
+
+    @Test
+    fun catalogResultsMapToDistinctStatuses() {
+        val noResult: CatalogResult? = null
+
+        assertEquals(CatalogStatus.Loading, noResult.toCatalogStatus())
+        assertEquals(
+            CatalogStatus.Ready(skippedDocumentCount = 1),
+            CatalogResult.Available(books, listOf("roto")).toCatalogStatus()
+        )
+        assertEquals(CatalogStatus.Empty, CatalogResult.Empty.toCatalogStatus())
+        assertEquals(
+            CatalogStatus.InvalidDocuments(documentCount = 2),
+            CatalogResult.InvalidDocuments(listOf("a", "b")).toCatalogStatus()
+        )
+        assertTrue(
+            CatalogResult.ReadError(CatalogReadError.CONNECTION).toCatalogStatus()
+                is CatalogStatus.Error
+        )
+    }
+
+    @Test
+    fun onlyAvailableCatalogExposesBooks() {
+        assertEquals(books, CatalogResult.Available(books).availableBooks())
+        assertTrue(CatalogResult.Empty.availableBooks().isEmpty())
+        assertTrue(
+            CatalogResult.ReadError(CatalogReadError.UNKNOWN).availableBooks().isEmpty()
+        )
     }
 
     private companion object {
