@@ -7,6 +7,8 @@ import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogReadError
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
 import com.example.laboratorio_09_tienda_temtica.model.toMoney
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -17,7 +19,8 @@ internal fun buildStoreUiState(
     searchQuery: String,
     sortOrder: CatalogSortOrder,
     favoriteBookIds: List<String>,
-    persistedOrderLines: List<OrderLineEntity>
+    persistedOrderLines: List<OrderLineEntity>,
+    catalogStatus: CatalogStatus = CatalogStatus.Ready()
 ): StoreUiState {
     val orderLines = persistedOrderLines.mapNotNull { entity ->
         books.firstOrNull { book -> book.id == entity.bookId }
@@ -38,6 +41,7 @@ internal fun buildStoreUiState(
     )
 
     return StoreUiState(
+        catalogStatus = catalogStatus,
         books = books,
         filteredBooks = matchingBooks,
         authors = authors,
@@ -48,6 +52,27 @@ internal fun buildStoreUiState(
         orderTotal = calculateOrderTotal(orderLines),
         orderUnitCount = orderLines.sumOf { line -> line.quantity }
     )
+}
+
+/** `null` means the repository has not answered yet. */
+internal fun CatalogResult?.toCatalogStatus(): CatalogStatus = when (this) {
+    null -> CatalogStatus.Loading
+    is CatalogResult.Available -> CatalogStatus.Ready(skippedDocumentCount = invalidDocumentIds.size)
+    CatalogResult.Empty -> CatalogStatus.Empty
+    is CatalogResult.InvalidDocuments -> CatalogStatus.InvalidDocuments(invalidDocumentIds.size)
+    is CatalogResult.ReadError -> CatalogStatus.Error(reason.toMessage())
+}
+
+internal fun CatalogResult?.availableBooks(): List<Books> =
+    (this as? CatalogResult.Available)?.books.orEmpty()
+
+private fun CatalogReadError.toMessage(): String = when (this) {
+    CatalogReadError.CONNECTION ->
+        "No se pudo conectar con el catálogo. Revisa tu conexión e inténtalo nuevamente."
+    CatalogReadError.PERMISSION_DENIED ->
+        "No tienes permiso para leer el catálogo."
+    CatalogReadError.UNKNOWN ->
+        "No se pudo leer el catálogo. Inténtalo nuevamente."
 }
 
 internal fun filterAndSortBooks(

@@ -32,6 +32,7 @@ import com.example.laboratorio_09_tienda_temtica.ui.screens.BookDetailScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CatalogScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.OrderScreen
 import com.example.laboratorio_09_tienda_temtica.ui.BillingType
+import com.example.laboratorio_09_tienda_temtica.ui.CatalogStatus
 import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
 import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CheckoutScreen
@@ -45,6 +46,8 @@ import java.math.BigDecimal
 
 @Composable
 fun StoreNavigation(
+    catalogStatus: CatalogStatus,
+    onRetryCatalog: () -> Unit,
     books: List<Books>,
     filteredBooks: List<Books>,
     authors: List<AuthorProfile>,
@@ -145,6 +148,8 @@ fun StoreNavigation(
         entryProvider = entryProvider {
             entry<CatalogKey> {
                 CatalogScreen(
+                    catalogStatus = catalogStatus,
+                    onRetryCatalog = onRetryCatalog,
                     books = filteredBooks,
                     favoriteBookIds = favoriteBookIds,
                     searchQuery = searchQuery,

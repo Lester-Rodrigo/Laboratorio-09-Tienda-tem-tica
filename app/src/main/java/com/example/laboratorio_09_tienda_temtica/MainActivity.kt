@@ -28,6 +28,8 @@ class MainActivity : ComponentActivity() {
                 val orderDetailUiState by ordersViewModel.orderDetailUiState.collectAsStateWithLifecycle()
 
                 StoreNavigation(
+                    catalogStatus = uiState.catalogStatus,
+                    onRetryCatalog = storeViewModel::retryCatalog,
                     books = uiState.books,
                     filteredBooks = uiState.filteredBooks,
                     authors = uiState.authors,

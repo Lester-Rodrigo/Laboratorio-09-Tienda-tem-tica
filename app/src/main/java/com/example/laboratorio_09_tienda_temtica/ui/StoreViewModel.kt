@@ -3,6 +3,7 @@ package com.example.laboratorio_09_tienda_temtica.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.laboratorio_09_tienda_temtica.data.BookRepositoryProvider
 import com.example.laboratorio_09_tienda_temtica.data.local.FavoriteEntity
 import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
 import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
@@ -14,15 +15,19 @@ import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
-import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
-import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
+import com.example.laboratorio_09_tienda_temtica.model.repository.BookRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
 import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -31,48 +36,16 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.time.Instant
 
-class StoreViewModel(application: Application) : AndroidViewModel(application) {
+class StoreViewModel(
+    application: Application,
+    private val bookRepository: BookRepository
+) : AndroidViewModel(application) {
+    // Used by the default ViewModel factory; Firebase is wired in the data layer.
+    constructor(application: Application) : this(application, BookRepositoryProvider.bookRepository)
+
     private val database = StoreDatabase.getInstance(application)
     private val storeDao = database.storeDao()
     private val storePreferences = StorePreferences(application)
-    private val originalBooks = listOf(
-        Books(
-            id = "book-1",
-            title = "El principito",
-            description = "Una fábula sobre la amistad, el amor y aquello que realmente importa.",
-            price = 89.90,
-            authorId = "author-1",
-            details = "Antoine de Saint-Exupéry · Primera edición: 1943 · Narrativa breve",
-            genre = "Narrativa breve",
-            format = "Tapa blanda",
-            stock = 8,
-            imageUrl = stableBookCoverUrl("book-1")
-        ),
-        Books(
-            id = "book-2",
-            title = "Cien años de soledad",
-            description = "La historia de la familia Buendía y el pueblo inolvidable de Macondo.",
-            price = 149.50,
-            authorId = "author-2",
-            details = "Gabriel García Márquez · Primera edición: 1967 · Realismo mágico",
-            genre = "Realismo mágico",
-            format = "Tapa dura",
-            stock = 3,
-            imageUrl = stableBookCoverUrl("book-2")
-        ),
-        Books(
-            id = "book-3",
-            title = "El amor en los tiempos del cólera",
-            description = "Una historia sobre un amor que persiste durante más de medio siglo.",
-            price = 124.00,
-            authorId = "author-2",
-            details = "Gabriel García Márquez · Primera edición: 1985 · Novela",
-            genre = "Romance",
-            format = "Tapa blanda",
-            stock = 0,
-            imageUrl = stableBookCoverUrl("book-3")
-        )
-    )
     private val authors = listOf(
         AuthorProfile(
             id = "author-1",
@@ -117,32 +90,38 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
             description = "Autor interesado en la relación entre tecnología, identidad y futuros posibles."
         )
     )
-    private val completeCatalog = generateBookCatalog(
-        originalBooks = originalBooks,
-        authorProfiles = authors
-    )
     private val searchQuery = MutableStateFlow("")
+    private val catalogRetryCount = MutableStateFlow(0)
+
+    // Each retry starts a new subscription; null marks the loading state until the first result.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val catalogResult: Flow<CatalogResult?> = catalogRetryCount.flatMapLatest {
+        bookRepository.observeCatalog().onStart<CatalogResult?> { emit(null) }
+    }
     private val initialUiState = buildStoreUiState(
-        books = completeCatalog,
+        books = emptyList(),
         authors = authors,
         searchQuery = "",
         sortOrder = CatalogSortOrder.NAME,
         favoriteBookIds = emptyList(),
-        persistedOrderLines = emptyList()
+        persistedOrderLines = emptyList(),
+        catalogStatus = CatalogStatus.Loading
     )
     val uiState: StateFlow<StoreUiState> = combine(
         searchQuery,
+        catalogResult,
         storeDao.observeFavoriteBookIds(),
         storeDao.observeOrderLines(),
         storePreferences.sortOrder
-    ) { query, favoriteIds, orderLineEntities, sortOrder ->
+    ) { query, catalog, favoriteIds, orderLineEntities, sortOrder ->
         buildStoreUiState(
-            books = completeCatalog,
+            books = catalog.availableBooks(),
             authors = authors,
             searchQuery = query,
             sortOrder = sortOrder,
             favoriteBookIds = favoriteIds,
-            persistedOrderLines = orderLineEntities
+            persistedOrderLines = orderLineEntities,
+            catalogStatus = catalog.toCatalogStatus()
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,8 +152,12 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun retryCatalog() {
+        catalogRetryCount.update { count -> count + 1 }
+    }
+
     fun findBookById(bookId: String): Books? =
-        completeCatalog.firstOrNull { book -> book.id == bookId }
+        uiState.value.books.firstOrNull { book -> book.id == bookId }
 
     fun addToOrder(bookId: String, quantity: Int = 1): OrderResult {
         val currentState = uiState.value
