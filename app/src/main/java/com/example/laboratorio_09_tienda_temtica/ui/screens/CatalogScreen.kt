@@ -271,15 +271,15 @@ private fun CatalogStatusMessage(
         ) {
             when (catalogStatus) {
                 CatalogStatus.Loading -> {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = "Cargando catálogo" })
                     Text(
-                        text = "Cargando catálogo…",
+                        text = "Cargando catálogo",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
                 CatalogStatus.Empty -> {
                     Text(
-                        text = "El catálogo todavía no tiene libros.",
+                        text = "No hay libros disponibles",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
