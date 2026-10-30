@@ -1,6 +1,9 @@
 package com.example.laboratorio_09_tienda_temtica.di
 
 import android.content.Context
+import com.example.laboratorio_09_tienda_temtica.data.remote.OrderRemoteClient
+import com.example.laboratorio_09_tienda_temtica.data.remote.RetrofitRemoteOrdersRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.RemoteOrdersRepository
 import com.example.laboratorio_09_tienda_temtica.data.local.RoomCartRepository
 import com.example.laboratorio_09_tienda_temtica.data.local.RoomFavoritesRepository
 import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
@@ -18,6 +21,10 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
 class AppContainer(context: Context) {
+    val remoteOrdersRepository: RemoteOrdersRepository by lazy {
+        RetrofitRemoteOrdersRepository(OrderRemoteClient.orderApi)
+    }
+
     private val applicationContext = context.applicationContext
     private val database by lazy { StoreDatabase.getInstance(applicationContext) }
     private val storeDao by lazy { database.storeDao() }
