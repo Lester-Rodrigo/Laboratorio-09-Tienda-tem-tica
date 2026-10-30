@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.androidx.room3.runtime)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
     ksp(libs.androidx.room3.compiler)
     implementation(libs.androidx.sqlite.framework)
     implementation(libs.androidx.datastore.preferences)
