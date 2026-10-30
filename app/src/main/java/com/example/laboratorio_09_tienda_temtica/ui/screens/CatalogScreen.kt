@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -30,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -41,16 +43,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
+import com.example.laboratorio_09_tienda_temtica.ui.CatalogStatus
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogScreen(
+    catalogStatus: CatalogStatus,
+    onRetryCatalog: () -> Unit,
     books: List<Books>,
     favoriteBookIds: Set<String>,
     searchQuery: String,
@@ -62,6 +68,7 @@ fun CatalogScreen(
     onFavoriteClick: (String) -> Unit,
     orderUnitCount: Int,
     onOrderClick: () -> Unit,
+    onMyOrdersClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
@@ -99,6 +106,9 @@ fun CatalogScreen(
                     Text(text = "Librería Literaria")
                 },
                 actions = {
+                    TextButton(onClick = onMyOrdersClick) {
+                        Text(text = "Mis pedidos")
+                    }
                     OrderAccessButton(
                         unitCount = orderUnitCount,
                         onClick = onOrderClick
@@ -173,12 +183,30 @@ fun CatalogScreen(
                         }
                     }
                 )
-                Text(
-                    text = "${books.size} resultados",
-                    style = MaterialTheme.typography.labelLarge
-                )
+                if (catalogStatus is CatalogStatus.Ready) {
+                    Text(
+                        text = "${books.size} resultados",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    if (catalogStatus.skippedDocumentCount > 0) {
+                        Text(
+                            text = "${catalogStatus.skippedDocumentCount} libros no se muestran porque sus datos son inválidos.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
-            if (books.isEmpty()) {
+            if (catalogStatus !is CatalogStatus.Ready) {
+                CatalogStatusMessage(
+                    catalogStatus = catalogStatus,
+                    onRetryCatalog = onRetryCatalog,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(24.dp)
+                )
+            } else if (books.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -222,6 +250,57 @@ fun CatalogScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogStatusMessage(
+    catalogStatus: CatalogStatus,
+    onRetryCatalog: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            when (catalogStatus) {
+                CatalogStatus.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = "Cargando catálogo" })
+                    Text(
+                        text = "Cargando catálogo",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                CatalogStatus.Empty -> {
+                    Text(
+                        text = "No hay libros disponibles",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                is CatalogStatus.InvalidDocuments -> {
+                    Text(
+                        text = "No se pudo mostrar el catálogo: ${catalogStatus.documentCount} documentos tienen datos inválidos.",
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                is CatalogStatus.Error -> {
+                    Text(
+                        text = catalogStatus.message,
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = onRetryCatalog) {
+                        Text(text = "Reintentar")
+                    }
+                }
+                is CatalogStatus.Ready -> Unit
             }
         }
     }

@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -38,9 +37,3 @@ class StorePreferences(private val context: Context) {
         }
     }
 }
-
-fun sortBooks(books: List<Books>, sortOrder: CatalogSortOrder): List<Books> =
-    when (sortOrder) {
-        CatalogSortOrder.NAME -> books.sortedBy { it.title }
-        CatalogSortOrder.PRICE -> books.sortedBy { it.price }
-    }

@@ -1,69 +1,61 @@
 package com.example.laboratorio_09_tienda_temtica.ui
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import com.example.laboratorio_09_tienda_temtica.data.local.FavoriteEntity
-import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
-import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
-import com.example.laboratorio_09_tienda_temtica.data.preferences.StorePreferences
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.laboratorio_09_tienda_temtica.BookStoreApplication
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.CartItem
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
-import com.example.laboratorio_09_tienda_temtica.model.generateBookCatalog
-import com.example.laboratorio_09_tienda_temtica.model.stableBookCoverUrl
-import kotlinx.coroutines.flow.SharingStarted
+import com.example.laboratorio_09_tienda_temtica.model.OrderSubmission
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrderLine
+import com.example.laboratorio_09_tienda_temtica.model.repository.AuthRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.BookRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CartRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogPreferencesRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogReadError
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
+import com.example.laboratorio_09_tienda_temtica.model.repository.FavoritesRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.RemoteOrdersRepository
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
+import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class StoreViewModel(application: Application) : AndroidViewModel(application) {
-    private val database = StoreDatabase.getInstance(application)
-    private val storeDao = database.storeDao()
-    private val storePreferences = StorePreferences(application)
-    private val originalBooks = listOf(
-        Books(
-            id = "book-1",
-            title = "El principito",
-            description = "Una fábula sobre la amistad, el amor y aquello que realmente importa.",
-            price = 89.90,
-            authorId = "author-1",
-            details = "Antoine de Saint-Exupéry · Primera edición: 1943 · Narrativa breve",
-            genre = "Narrativa breve",
-            format = "Tapa blanda",
-            stock = 8,
-            imageUrl = stableBookCoverUrl("book-1")
-        ),
-        Books(
-            id = "book-2",
-            title = "Cien años de soledad",
-            description = "La historia de la familia Buendía y el pueblo inolvidable de Macondo.",
-            price = 149.50,
-            authorId = "author-2",
-            details = "Gabriel García Márquez · Primera edición: 1967 · Realismo mágico",
-            genre = "Realismo mágico",
-            format = "Tapa dura",
-            stock = 3,
-            imageUrl = stableBookCoverUrl("book-2")
-        ),
-        Books(
-            id = "book-3",
-            title = "El amor en los tiempos del cólera",
-            description = "Una historia sobre un amor que persiste durante más de medio siglo.",
-            price = 124.00,
-            authorId = "author-2",
-            details = "Gabriel García Márquez · Primera edición: 1985 · Novela",
-            genre = "Romance",
-            format = "Tapa blanda",
-            stock = 0,
-            imageUrl = stableBookCoverUrl("book-3")
-        )
-    )
+class StoreViewModel(
+    private val authRepository: AuthRepository,
+    private val bookRepository: BookRepository,
+    private val favoritesRepository: FavoritesRepository,
+    private val cartRepository: CartRepository,
+    private val catalogPreferencesRepository: CatalogPreferencesRepository,
+    private val remoteOrdersRepository: RemoteOrdersRepository
+) : ViewModel() {
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+    fun dismissOperationError() {
+        _operationError.value = null
+    }
+    private fun reportPersistenceResult(result: Result<Unit>) {
+        if (result.isFailure) _operationError.value = "No se pudo guardar el cambio. Inténtalo nuevamente."
+    }
     private val authors = listOf(
         AuthorProfile(
             id = "author-1",
@@ -108,43 +100,67 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
             description = "Autor interesado en la relación entre tecnología, identidad y futuros posibles."
         )
     )
-    private val completeCatalog = generateBookCatalog(
-        originalBooks = originalBooks,
-        authorProfiles = authors
-    )
     private val searchQuery = MutableStateFlow("")
+    private var latestBooks: List<Books> = emptyList()
+    private val catalogRetryCount = MutableStateFlow(0)
+
+    // Each retry starts a new subscription; null marks the loading state until the first result.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val catalogResult: Flow<CatalogResult?> = catalogRetryCount.flatMapLatest {
+        flow<CatalogResult?> {
+            emit(null)
+            if (authRepository.ensureAnonymousSession().isSuccess) {
+                emitAll(bookRepository.observeCatalog())
+            } else {
+                emit(CatalogResult.ReadError(CatalogReadError.PERMISSION_DENIED))
+            }
+        }.catch { error ->
+            if (error is CancellationException) throw error
+            emit(CatalogResult.ReadError(CatalogReadError.UNKNOWN))
+        }
+    }
     private val initialUiState = buildStoreUiState(
-        books = completeCatalog,
+        books = emptyList(),
         authors = authors,
         searchQuery = "",
         sortOrder = CatalogSortOrder.NAME,
         favoriteBookIds = emptyList(),
-        persistedOrderLines = emptyList()
+        persistedOrderLines = emptyList(),
+        catalogStatus = CatalogStatus.Loading
     )
     val uiState: StateFlow<StoreUiState> = combine(
         searchQuery,
-        storeDao.observeFavoriteBookIds(),
-        storeDao.observeOrderLines(),
-        storePreferences.sortOrder
-    ) { query, favoriteIds, orderLineEntities, sortOrder ->
+        catalogResult,
+        favoritesRepository.observeFavoriteBookIds(),
+        cartRepository.observeItems(),
+        catalogPreferencesRepository.observeSortOrder()
+    ) { query, catalog, favoriteIds, cartItems, sortOrder ->
+        latestBooks = when (catalog) {
+            is CatalogResult.Available -> catalog.books
+            CatalogResult.Empty, is CatalogResult.InvalidDocuments -> emptyList()
+            null, is CatalogResult.ReadError -> latestBooks
+        }
         buildStoreUiState(
-            books = completeCatalog,
+            books = latestBooks,
             authors = authors,
             searchQuery = query,
             sortOrder = sortOrder,
             favoriteBookIds = favoriteIds,
-            persistedOrderLines = orderLineEntities
+            persistedOrderLines = cartItems,
+            catalogStatus = catalog.toCatalogStatus()
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = initialUiState
     )
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
     val checkoutUiState: StateFlow<CheckoutUiState> = _checkoutUiState.asStateFlow()
-    private val _receipt = MutableStateFlow<OrderReceipt?>(null)
-    val receipt: StateFlow<OrderReceipt?> = _receipt.asStateFlow()
-    private var orderSequence = 0
+    private val _submitOrderUiState =
+        MutableStateFlow<SubmitOrderUiState>(SubmitOrderUiState.Idle)
+
+    val submitOrderUiState: StateFlow<SubmitOrderUiState> =
+        _submitOrderUiState.asStateFlow()
 
     fun updateSearchQuery(query: String) {
         if (query != searchQuery.value) {
@@ -158,12 +174,16 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSortOrder(newSortOrder: CatalogSortOrder) {
         viewModelScope.launch {
-            storePreferences.saveSortOrder(newSortOrder)
+            reportPersistenceResult(catalogPreferencesRepository.saveSortOrder(newSortOrder))
         }
     }
 
+    fun retryCatalog() {
+        catalogRetryCount.update { count -> count + 1 }
+    }
+
     fun findBookById(bookId: String): Books? =
-        completeCatalog.firstOrNull { book -> book.id == bookId }
+        uiState.value.books.firstOrNull { book -> book.id == bookId }
 
     fun addToOrder(bookId: String, quantity: Int = 1): OrderResult {
         val currentState = uiState.value
@@ -174,9 +194,7 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         val result = validateOrderAddition(book, currentQuantity, quantity)
         if (result == OrderResult.ADDED) {
             viewModelScope.launch {
-                storeDao.upsertOrderLine(
-                    OrderLineEntity(bookId = bookId, quantity = currentQuantity + quantity)
-                )
+                reportPersistenceResult(cartRepository.saveItem(CartItem(bookId, currentQuantity + quantity)))
             }
         }
         return result
@@ -193,11 +211,9 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
         viewModelScope.launch {
             if (line.quantity <= 1) {
-                storeDao.deleteOrderLine(bookId)
+                reportPersistenceResult(cartRepository.removeItem(bookId))
             } else {
-                storeDao.upsertOrderLine(
-                    OrderLineEntity(bookId = bookId, quantity = line.quantity - 1)
-                )
+                reportPersistenceResult(cartRepository.saveItem(CartItem(bookId, line.quantity - 1)))
             }
         }
     }
@@ -207,7 +223,7 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         viewModelScope.launch {
-            storeDao.deleteOrderLine(bookId)
+            reportPersistenceResult(cartRepository.removeItem(bookId))
         }
     }
 
@@ -218,9 +234,9 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             if (bookId in currentState.favoriteBookIds) {
-                storeDao.deleteFavorite(bookId)
+                reportPersistenceResult(favoritesRepository.removeFavorite(bookId))
             } else {
-                storeDao.upsertFavorite(FavoriteEntity(bookId = bookId))
+                reportPersistenceResult(favoritesRepository.addFavorite(bookId))
             }
         }
     }
@@ -280,33 +296,71 @@ class StoreViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     @Synchronized
-    fun confirmOrder(): Boolean {
-        val checkout = _checkoutUiState.value
-        val order = uiState.value
-        if (!checkout.isFormValid || order.orderUnitCount <= 0) {
-            return false
+    fun confirmOrder() {
+        if (_submitOrderUiState.value is SubmitOrderUiState.Loading) {
+            return
         }
-        val nextSequence = orderSequence + 1
-        val confirmedReceipt = OrderReceipt(
-            folio = generateOrderFolio(nextSequence),
-            customerName = checkout.fullName,
-            customerPhone = checkout.phone,
-            billingType = checkout.billingType,
-            nit = if (checkout.billingType == BillingType.NIT) checkout.nit else null,
-            businessName = if (checkout.billingType == BillingType.NIT) {
-                checkout.businessName
-            } else {
-                null
+
+        val checkoutSnapshot = _checkoutUiState.value
+        val orderSnapshot = uiState.value
+
+        if (!checkoutSnapshot.isFormValid || orderSnapshot.orderLines.isEmpty()) {
+            return
+        }
+
+        val request = OrderSubmission(
+            createdAt = Instant.now().toString(),
+            billingType = checkoutSnapshot.billingType.name,
+            total = orderSnapshot.orderTotal,
+            lines = orderSnapshot.orderLines.map { line ->
+                RemoteOrderLine(
+                    bookId = line.bookId,
+                    title = line.title,
+                    unitPrice = line.unitPrice,
+                    quantity = line.quantity,
+                    subtotal = line.subtotal
+                )
             },
-            paymentMethod = checkout.paymentMethod,
-            total = order.orderTotal
+            paymentMethod = checkoutSnapshot.paymentMethod.name
         )
-        _receipt.value = confirmedReceipt
+
+        _submitOrderUiState.value = SubmitOrderUiState.Loading
+
         viewModelScope.launch {
-            storeDao.clearOrder()
+            remoteOrdersRepository.createOrder(request).fold(
+                onSuccess = { createdOrder ->
+                    _submitOrderUiState.value = SubmitOrderUiState.Success(createdOrder)
+                    reportPersistenceResult(cartRepository.clearCart())
+                    _checkoutUiState.value = CheckoutUiState()
+                },
+                onFailure = {
+                    _submitOrderUiState.value = SubmitOrderUiState.Error(
+                        "No se pudo registrar el pedido. Revisa tu conexión e inténtalo nuevamente."
+                    )
+                }
+            )
         }
-        _checkoutUiState.value = CheckoutUiState()
-        orderSequence = nextSequence
-        return true
+    }
+    fun resetSubmitOrderState() {
+        if (_submitOrderUiState.value !is SubmitOrderUiState.Loading) {
+            _submitOrderUiState.value = SubmitOrderUiState.Idle
+        }
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application = this[APPLICATION_KEY] as BookStoreApplication
+                val container = application.container
+                StoreViewModel(
+                    authRepository = container.authRepository,
+                    bookRepository = container.bookRepository,
+                    favoritesRepository = container.favoritesRepository,
+                    cartRepository = container.cartRepository,
+                    catalogPreferencesRepository = container.catalogPreferencesRepository,
+                    remoteOrdersRepository = container.remoteOrdersRepository
+                )
+            }
+        }
     }
 }

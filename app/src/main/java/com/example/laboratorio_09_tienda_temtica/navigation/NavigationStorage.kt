@@ -14,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -31,15 +32,22 @@ import com.example.laboratorio_09_tienda_temtica.ui.screens.BookDetailScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CatalogScreen
 import com.example.laboratorio_09_tienda_temtica.ui.screens.OrderScreen
 import com.example.laboratorio_09_tienda_temtica.ui.BillingType
+import com.example.laboratorio_09_tienda_temtica.ui.CatalogStatus
 import com.example.laboratorio_09_tienda_temtica.ui.CheckoutUiState
 import com.example.laboratorio_09_tienda_temtica.ui.PaymentMethod
 import com.example.laboratorio_09_tienda_temtica.ui.screens.CheckoutScreen
-import com.example.laboratorio_09_tienda_temtica.ui.OrderReceipt
+import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
 import com.example.laboratorio_09_tienda_temtica.ui.screens.ConfirmationScreen
+import com.example.laboratorio_09_tienda_temtica.ui.orders.OrderDetailScreen
+import com.example.laboratorio_09_tienda_temtica.ui.orders.OrderDetailUiState
+import com.example.laboratorio_09_tienda_temtica.ui.orders.OrdersScreen
+import com.example.laboratorio_09_tienda_temtica.ui.orders.OrdersUiState
 import java.math.BigDecimal
 
 @Composable
 fun StoreNavigation(
+    catalogStatus: CatalogStatus,
+    onRetryCatalog: () -> Unit,
     books: List<Books>,
     filteredBooks: List<Books>,
     authors: List<AuthorProfile>,
@@ -64,8 +72,14 @@ fun StoreNavigation(
     onNitChange: (String) -> Unit,
     onBusinessNameChange: (String) -> Unit,
     onPaymentMethodChange: (PaymentMethod) -> Unit,
-    receipt: OrderReceipt?,
-    onConfirmOrder: () -> Boolean,
+    submitOrderUiState: SubmitOrderUiState,
+    onConfirmOrder: () -> Unit,
+    onRetryOrder: () -> Unit,
+    onResetSubmitOrderState: () -> Unit,
+    ordersUiState: OrdersUiState,
+    orderDetailUiState: OrderDetailUiState,
+    onLoadOrders: () -> Unit,
+    onLoadOrderDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backStack = rememberNavBackStack(CatalogKey)
@@ -79,8 +93,23 @@ fun StoreNavigation(
             backStack.add(OrderKey)
         }
     }
+    val openOrders: () -> Unit = {
+        onLoadOrders()
+        backStack.add(OrdersKey)
+    }
+    val openOrderDetail: (String) -> Unit = { orderId ->
+        onLoadOrderDetail(orderId)
+        backStack.add(OrderDetailKey(orderId = orderId))
+    }
     BackHandler(enabled = backStack.size > 1) {
         navigateBack()
+    }
+    LaunchedEffect(submitOrderUiState) {
+        if (submitOrderUiState is SubmitOrderUiState.Success &&
+            backStack.lastOrNull() != ConfirmationKey
+        ) {
+            backStack.add(ConfirmationKey)
+        }
     }
     NavDisplay(
         modifier = modifier,
@@ -119,6 +148,8 @@ fun StoreNavigation(
         entryProvider = entryProvider {
             entry<CatalogKey> {
                 CatalogScreen(
+                    catalogStatus = catalogStatus,
+                    onRetryCatalog = onRetryCatalog,
                     books = filteredBooks,
                     favoriteBookIds = favoriteBookIds,
                     searchQuery = searchQuery,
@@ -129,7 +160,24 @@ fun StoreNavigation(
                     onBookClick = { bookId -> backStack.add(BookDetailKey(bookId = bookId)) },
                     onFavoriteClick = onFavoriteClick,
                     orderUnitCount = orderUnitCount,
-                    onOrderClick = openOrder
+                    onOrderClick = openOrder,
+                    onMyOrdersClick = openOrders
+                )
+            }
+            entry<OrdersKey> {
+                OrdersScreen(
+                    uiState = ordersUiState,
+                    onLoadOrders = onLoadOrders,
+                    onOrderClick = openOrderDetail,
+                    onBackClick = navigateBack
+                )
+            }
+            entry<OrderDetailKey> { key ->
+                OrderDetailScreen(
+                    orderId = key.orderId,
+                    uiState = orderDetailUiState,
+                    onLoadOrder = onLoadOrderDetail,
+                    onBackToOrders = navigateBack
                 )
             }
             entry<BookDetailKey> { key ->
@@ -194,22 +242,24 @@ fun StoreNavigation(
                     onBusinessNameChange = onBusinessNameChange,
                     onPaymentMethodChange = onPaymentMethodChange,
                     onConfirmOrder = {
-                        val confirmed = onConfirmOrder()
-
-                        if (confirmed && backStack.lastOrNull() != ConfirmationKey){
-                            backStack.add(ConfirmationKey)
+                        if (submitOrderUiState is SubmitOrderUiState.Error) {
+                            onRetryOrder()
+                        } else {
+                            onConfirmOrder()
                         }
                     },
-                    onBackClick = navigateBack
+                    onBackClick = navigateBack,
+                    submitOrderUiState = submitOrderUiState
                 )
             }
             entry<ConfirmationKey> {
-                val savedReceipt = receipt
+                val successfulState = submitOrderUiState as? SubmitOrderUiState.Success
 
-                if (savedReceipt != null) {
+                if (successfulState != null) {
                     ConfirmationScreen(
-                        receipt = savedReceipt,
+                        order = successfulState.order,
                         onGoToCatalog = {
+                            onResetSubmitOrderState()
                             while (backStack.size > 1) {
                                 backStack.removeLastOrNull()
                             }
