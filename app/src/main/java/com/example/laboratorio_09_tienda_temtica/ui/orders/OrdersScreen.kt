@@ -28,7 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderDto
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +101,7 @@ fun OrdersScreen(
 
 @Composable
 private fun OrderSummaryCard(
-    order: OrderDto,
+    order: RemoteOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {

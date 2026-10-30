@@ -1,23 +1,29 @@
 package com.example.laboratorio_09_tienda_temtica.ui
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import com.example.laboratorio_09_tienda_temtica.data.BookRepositoryProvider
-import com.example.laboratorio_09_tienda_temtica.data.local.FavoriteEntity
-import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
-import com.example.laboratorio_09_tienda_temtica.data.local.StoreDatabase
-import com.example.laboratorio_09_tienda_temtica.data.preferences.StorePreferences
-import com.example.laboratorio_09_tienda_temtica.data.remote.CreateOrderRequestDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderRemoteClient
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.laboratorio_09_tienda_temtica.BookStoreApplication
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.CartItem
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
+import com.example.laboratorio_09_tienda_temtica.model.OrderSubmission
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrderLine
+import com.example.laboratorio_09_tienda_temtica.model.repository.AuthRepository
 import com.example.laboratorio_09_tienda_temtica.model.repository.BookRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CartRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogPreferencesRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogReadError
 import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
+import com.example.laboratorio_09_tienda_temtica.model.repository.FavoritesRepository
+import com.example.laboratorio_09_tienda_temtica.model.repository.RemoteOrdersRepository
 import com.example.laboratorio_09_tienda_temtica.ui.state.SubmitOrderUiState
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -25,27 +31,31 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.SerializationException
-import retrofit2.HttpException
-import java.io.IOException
-import java.time.Instant
 
 class StoreViewModel(
-    application: Application,
-    private val bookRepository: BookRepository
-) : AndroidViewModel(application) {
-    // Used by the default ViewModel factory; Firebase is wired in the data layer.
-    constructor(application: Application) : this(application, BookRepositoryProvider.bookRepository)
-
-    private val database = StoreDatabase.getInstance(application)
-    private val storeDao = database.storeDao()
-    private val storePreferences = StorePreferences(application)
+    private val authRepository: AuthRepository,
+    private val bookRepository: BookRepository,
+    private val favoritesRepository: FavoritesRepository,
+    private val cartRepository: CartRepository,
+    private val catalogPreferencesRepository: CatalogPreferencesRepository,
+    private val remoteOrdersRepository: RemoteOrdersRepository
+) : ViewModel() {
+    private val _operationError = MutableStateFlow<String?>(null)
+    val operationError: StateFlow<String?> = _operationError.asStateFlow()
+    fun dismissOperationError() {
+        _operationError.value = null
+    }
+    private fun reportPersistenceResult(result: Result<Unit>) {
+        if (result.isFailure) _operationError.value = "No se pudo guardar el cambio. Inténtalo nuevamente."
+    }
     private val authors = listOf(
         AuthorProfile(
             id = "author-1",
@@ -91,12 +101,23 @@ class StoreViewModel(
         )
     )
     private val searchQuery = MutableStateFlow("")
+    private var latestBooks: List<Books> = emptyList()
     private val catalogRetryCount = MutableStateFlow(0)
 
     // Each retry starts a new subscription; null marks the loading state until the first result.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val catalogResult: Flow<CatalogResult?> = catalogRetryCount.flatMapLatest {
-        bookRepository.observeCatalog().onStart<CatalogResult?> { emit(null) }
+        flow<CatalogResult?> {
+            emit(null)
+            if (authRepository.ensureAnonymousSession().isSuccess) {
+                emitAll(bookRepository.observeCatalog())
+            } else {
+                emit(CatalogResult.ReadError(CatalogReadError.PERMISSION_DENIED))
+            }
+        }.catch { error ->
+            if (error is CancellationException) throw error
+            emit(CatalogResult.ReadError(CatalogReadError.UNKNOWN))
+        }
     }
     private val initialUiState = buildStoreUiState(
         books = emptyList(),
@@ -110,22 +131,27 @@ class StoreViewModel(
     val uiState: StateFlow<StoreUiState> = combine(
         searchQuery,
         catalogResult,
-        storeDao.observeFavoriteBookIds(),
-        storeDao.observeOrderLines(),
-        storePreferences.sortOrder
-    ) { query, catalog, favoriteIds, orderLineEntities, sortOrder ->
+        favoritesRepository.observeFavoriteBookIds(),
+        cartRepository.observeItems(),
+        catalogPreferencesRepository.observeSortOrder()
+    ) { query, catalog, favoriteIds, cartItems, sortOrder ->
+        latestBooks = when (catalog) {
+            is CatalogResult.Available -> catalog.books
+            CatalogResult.Empty, is CatalogResult.InvalidDocuments -> emptyList()
+            null, is CatalogResult.ReadError -> latestBooks
+        }
         buildStoreUiState(
-            books = catalog.availableBooks(),
+            books = latestBooks,
             authors = authors,
             searchQuery = query,
             sortOrder = sortOrder,
             favoriteBookIds = favoriteIds,
-            persistedOrderLines = orderLineEntities,
+            persistedOrderLines = cartItems,
             catalogStatus = catalog.toCatalogStatus()
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = initialUiState
     )
     private val _checkoutUiState = MutableStateFlow(CheckoutUiState())
@@ -148,7 +174,7 @@ class StoreViewModel(
 
     fun updateSortOrder(newSortOrder: CatalogSortOrder) {
         viewModelScope.launch {
-            storePreferences.saveSortOrder(newSortOrder)
+            reportPersistenceResult(catalogPreferencesRepository.saveSortOrder(newSortOrder))
         }
     }
 
@@ -168,9 +194,7 @@ class StoreViewModel(
         val result = validateOrderAddition(book, currentQuantity, quantity)
         if (result == OrderResult.ADDED) {
             viewModelScope.launch {
-                storeDao.upsertOrderLine(
-                    OrderLineEntity(bookId = bookId, quantity = currentQuantity + quantity)
-                )
+                reportPersistenceResult(cartRepository.saveItem(CartItem(bookId, currentQuantity + quantity)))
             }
         }
         return result
@@ -187,11 +211,9 @@ class StoreViewModel(
         val line = uiState.value.orderLines.firstOrNull { it.bookId == bookId } ?: return
         viewModelScope.launch {
             if (line.quantity <= 1) {
-                storeDao.deleteOrderLine(bookId)
+                reportPersistenceResult(cartRepository.removeItem(bookId))
             } else {
-                storeDao.upsertOrderLine(
-                    OrderLineEntity(bookId = bookId, quantity = line.quantity - 1)
-                )
+                reportPersistenceResult(cartRepository.saveItem(CartItem(bookId, line.quantity - 1)))
             }
         }
     }
@@ -201,7 +223,7 @@ class StoreViewModel(
             return
         }
         viewModelScope.launch {
-            storeDao.deleteOrderLine(bookId)
+            reportPersistenceResult(cartRepository.removeItem(bookId))
         }
     }
 
@@ -212,9 +234,9 @@ class StoreViewModel(
         }
         viewModelScope.launch {
             if (bookId in currentState.favoriteBookIds) {
-                storeDao.deleteFavorite(bookId)
+                reportPersistenceResult(favoritesRepository.removeFavorite(bookId))
             } else {
-                storeDao.upsertFavorite(FavoriteEntity(bookId = bookId))
+                reportPersistenceResult(favoritesRepository.addFavorite(bookId))
             }
         }
     }
@@ -286,17 +308,17 @@ class StoreViewModel(
             return
         }
 
-        val request = CreateOrderRequestDto(
+        val request = OrderSubmission(
             createdAt = Instant.now().toString(),
             billingType = checkoutSnapshot.billingType.name,
-            total = orderSnapshot.orderTotal.toPlainString(),
+            total = orderSnapshot.orderTotal,
             lines = orderSnapshot.orderLines.map { line ->
-                OrderLineDto(
+                RemoteOrderLine(
                     bookId = line.bookId,
                     title = line.title,
-                    unitPrice = line.unitPrice.toPlainString(),
+                    unitPrice = line.unitPrice,
                     quantity = line.quantity,
-                    subtotal = line.subtotal.toPlainString()
+                    subtotal = line.subtotal
                 )
             },
             paymentMethod = checkoutSnapshot.paymentMethod.name
@@ -305,35 +327,40 @@ class StoreViewModel(
         _submitOrderUiState.value = SubmitOrderUiState.Loading
 
         viewModelScope.launch {
-            try {
-                val createdOrder =
-                    OrderRemoteClient.orderApi.createOrder(request)
-
-                _submitOrderUiState.value =
-                    SubmitOrderUiState.Success(createdOrder)
-
-                storeDao.clearOrder()
-                _checkoutUiState.value = CheckoutUiState()
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: IOException) {
-                _submitOrderUiState.value = SubmitOrderUiState.Error(
-                    message = "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo nuevamente."
-                )
-            } catch (exception: HttpException) {
-                _submitOrderUiState.value = SubmitOrderUiState.Error(
-                    message = "El servidor no pudo registrar el pedido. Inténtalo nuevamente."
-                )
-            } catch (exception: SerializationException) {
-                _submitOrderUiState.value = SubmitOrderUiState.Error(
-                    message = "La respuesta del servidor no pudo procesarse."
-                )
-            }
+            remoteOrdersRepository.createOrder(request).fold(
+                onSuccess = { createdOrder ->
+                    _submitOrderUiState.value = SubmitOrderUiState.Success(createdOrder)
+                    reportPersistenceResult(cartRepository.clearCart())
+                    _checkoutUiState.value = CheckoutUiState()
+                },
+                onFailure = {
+                    _submitOrderUiState.value = SubmitOrderUiState.Error(
+                        "No se pudo registrar el pedido. Revisa tu conexión e inténtalo nuevamente."
+                    )
+                }
+            )
         }
     }
     fun resetSubmitOrderState() {
         if (_submitOrderUiState.value !is SubmitOrderUiState.Loading) {
             _submitOrderUiState.value = SubmitOrderUiState.Idle
+        }
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application = this[APPLICATION_KEY] as BookStoreApplication
+                val container = application.container
+                StoreViewModel(
+                    authRepository = container.authRepository,
+                    bookRepository = container.bookRepository,
+                    favoritesRepository = container.favoritesRepository,
+                    cartRepository = container.cartRepository,
+                    catalogPreferencesRepository = container.catalogPreferencesRepository,
+                    remoteOrdersRepository = container.remoteOrdersRepository
+                )
+            }
         }
     }
 }

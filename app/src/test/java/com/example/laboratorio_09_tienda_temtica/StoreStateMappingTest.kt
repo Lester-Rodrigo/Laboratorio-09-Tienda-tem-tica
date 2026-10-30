@@ -1,6 +1,6 @@
 package com.example.laboratorio_09_tienda_temtica
 
-import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
+import com.example.laboratorio_09_tienda_temtica.model.CartItem
 import com.example.laboratorio_09_tienda_temtica.model.Books
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
@@ -69,8 +69,8 @@ class StoreStateMappingTest {
             sortOrder = CatalogSortOrder.PRICE,
             favoriteBookIds = listOf("book-a", "book-a", "book-c"),
             persistedOrderLines = listOf(
-                OrderLineEntity(bookId = "book-a", quantity = 2),
-                OrderLineEntity(bookId = "book-c", quantity = 1)
+                CartItem(bookId = "book-a", quantity = 2),
+                CartItem(bookId = "book-c", quantity = 1)
             )
         )
 
@@ -90,8 +90,8 @@ class StoreStateMappingTest {
             sortOrder = CatalogSortOrder.NAME,
             favoriteBookIds = emptyList(),
             persistedOrderLines = listOf(
-                OrderLineEntity(bookId = "missing", quantity = 1),
-                OrderLineEntity(bookId = "book-a", quantity = 0)
+                CartItem(bookId = "missing", quantity = 1),
+                CartItem(bookId = "book-a", quantity = 0)
             )
         )
 

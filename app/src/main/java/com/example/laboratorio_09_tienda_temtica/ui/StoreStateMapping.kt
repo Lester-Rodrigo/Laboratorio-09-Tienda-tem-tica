@@ -1,14 +1,14 @@
 package com.example.laboratorio_09_tienda_temtica.ui
 
-import com.example.laboratorio_09_tienda_temtica.data.local.OrderLineEntity
-import com.example.laboratorio_09_tienda_temtica.data.preferences.sortBooks
 import com.example.laboratorio_09_tienda_temtica.model.AuthorProfile
 import com.example.laboratorio_09_tienda_temtica.model.Books
+import com.example.laboratorio_09_tienda_temtica.model.CartItem
 import com.example.laboratorio_09_tienda_temtica.model.CatalogSortOrder
 import com.example.laboratorio_09_tienda_temtica.model.OrderLine
 import com.example.laboratorio_09_tienda_temtica.model.OrderResult
 import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogReadError
 import com.example.laboratorio_09_tienda_temtica.model.repository.CatalogResult
+import com.example.laboratorio_09_tienda_temtica.model.sortBooks
 import com.example.laboratorio_09_tienda_temtica.model.toMoney
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -19,18 +19,18 @@ internal fun buildStoreUiState(
     searchQuery: String,
     sortOrder: CatalogSortOrder,
     favoriteBookIds: List<String>,
-    persistedOrderLines: List<OrderLineEntity>,
+    persistedOrderLines: List<CartItem>,
     catalogStatus: CatalogStatus = CatalogStatus.Ready()
 ): StoreUiState {
-    val orderLines = persistedOrderLines.mapNotNull { entity ->
-        books.firstOrNull { book -> book.id == entity.bookId }
-            ?.takeIf { entity.quantity > 0 }
+    val orderLines = persistedOrderLines.mapNotNull { item ->
+        books.firstOrNull { book -> book.id == item.bookId }
+            ?.takeIf { item.quantity > 0 }
             ?.let { book ->
                 OrderLine(
                     bookId = book.id,
                     title = book.title,
                     unitPrice = book.price.toMoney(),
-                    quantity = entity.quantity
+                    quantity = item.quantity
                 )
             }
     }

@@ -11,20 +11,20 @@ class FirestoreBookMapperTest {
     fun validDocumentUsesDocumentIdAndConvertsFields() {
         val fields = validBookFields() + ("id" to "id-dentro-del-documento")
 
-        val book = bookDocument(id = "book-1", fields = fields).toBookOrNull()
+        val book = requireNotNull(bookDocument(id = "book-1", fields = fields).toBookOrNull())
 
         assertNotNull(book)
-        assertEquals("book-1", book!!.id)
+        assertEquals("book-1", book.id)
         assertEquals(89.90, book.price, 0.0)
         assertEquals(8, book.stock)
     }
 
     @Test
     fun priceAcceptsWholeNumbersDecimalsAndNumericText() {
-        assertEquals(120.0, parsePrice(120L)!!, 0.0)
-        assertEquals(120.0, parsePrice(120)!!, 0.0)
-        assertEquals(89.9, parsePrice(89.9)!!, 0.0)
-        assertEquals(45.5, parsePrice(" 45.50 ")!!, 0.0)
+        assertEquals(120.0, requireNotNull(parsePrice(120L)), 0.0)
+        assertEquals(120.0, requireNotNull(parsePrice(120)), 0.0)
+        assertEquals(89.9, requireNotNull(parsePrice(89.9)), 0.0)
+        assertEquals(45.5, requireNotNull(parsePrice(" 45.50 ")), 0.0)
     }
 
     @Test

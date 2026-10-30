@@ -22,8 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrder
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrderLine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +85,7 @@ fun OrderDetailScreen(
 
 @Composable
 private fun OrderDetailContent(
-    order: OrderDto,
+    order: RemoteOrder,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -120,7 +120,7 @@ private fun OrderDetailContent(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = order.total,
+                    text = order.total.toPlainString(),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -132,7 +132,7 @@ private fun OrderDetailContent(
 
 @Composable
 private fun OrderDetailLineCard(
-    line: OrderLineDto,
+    line: RemoteOrderLine,
     modifier: Modifier = Modifier
 ) {
     Card(

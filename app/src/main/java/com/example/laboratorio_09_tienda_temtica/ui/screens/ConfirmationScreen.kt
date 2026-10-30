@@ -20,13 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderDto
-import com.example.laboratorio_09_tienda_temtica.data.remote.OrderLineDto
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrder
+import com.example.laboratorio_09_tienda_temtica.model.RemoteOrderLine
 import com.example.laboratorio_09_tienda_temtica.model.formatQuetzales
+import java.math.BigDecimal
 
 @Composable
 fun ConfirmationScreen(
-    order: OrderDto,
+    order: RemoteOrder,
     onGoToCatalog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -109,10 +110,11 @@ fun ConfirmationScreen(
 
 @Composable
 private fun ConfirmationOrderLine(
-    line: OrderLineDto
+    line: RemoteOrderLine,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
@@ -135,10 +137,11 @@ private fun ConfirmationOrderLine(
 private fun ConfirmationRow(
     label: String,
     value: String,
+    modifier: Modifier = Modifier,
     emphasize: Boolean = false
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
@@ -163,7 +166,4 @@ private fun ConfirmationRow(
     }
 }
 
-private fun formatRemotePrice(value: String): String =
-    value.toBigDecimalOrNull()
-        ?.let(::formatQuetzales)
-        ?: value
+private fun formatRemotePrice(value: BigDecimal): String = formatQuetzales(value)
